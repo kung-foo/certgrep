@@ -1,0 +1,16 @@
+{
+	"ImportPath": "github.com/kung-foo/certgrep",
+	"GoVersion": "go1.4.2",
+	"Deps": [
+		{
+			"ImportPath": "github.com/docopt/docopt-go",
+			"Comment": "0.6.1-5-g854c423",
+			"Rev": "854c423c810880e30b9fecdabb12d54f4a92f9bb"
+		},
+		{
+			"ImportPath": "github.com/google/gopacket",
+			"Comment": "v1.1.10-2-gfc2fb8a",
+			"Rev": "fc2fb8aef6037fe015468281e37e67519a79bbf2"
+		}
+	]
+}

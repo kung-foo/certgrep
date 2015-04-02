@@ -20,7 +20,13 @@ _cgo_export.*
 _testmain.go
 
 *.exe
-*.test
-*.prof
+#*
+*~
 
-certgrep
+# examples binaries
+examples/synscan/synscan
+examples/pfdump/pfdump
+examples/pcapdump/pcapdump
+examples/httpassembly/httpassembly
+examples/statsassembly/statsassembly
+examples/arpscan/arpscan
