@@ -11,7 +11,7 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/tcpassembly"
 	"github.com/google/gopacket/tcpassembly/tcpreader"
-	"github.com/kung-foo/certgrep/tls_clone"
+	tls_clone "github.com/kung-foo/certgrep/tls_clone"
 )
 
 var DPDSSLServer = regexp.MustCompile(`^(\x16\x03[\x00\x01\x02\x03]..\x02...\x03[\x00\x01\x02\x03]).*`)

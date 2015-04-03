@@ -4,7 +4,7 @@
 
 // TLS low level connection and record layer
 
-package tls_clone
+package tls
 
 import (
 	"bytes"
