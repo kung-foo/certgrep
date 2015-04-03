@@ -19,20 +19,20 @@ var DPDSSLClient = regexp.MustCompile(`^(\x16\x03[\x00\x01\x02\x03]..\x01...\x03
 
 var flow_idx uint64 = 0
 
-type FakeConn struct {
+type fakeConn struct {
 	net.Conn
 	flow io.Reader
 	idx  uint64
 }
 
-func (f *FakeConn) Read(b []byte) (n int, err error) {
+func (f *fakeConn) Read(b []byte) (n int, err error) {
 	r, err := f.flow.Read(b)
 	//log.Printf("F%02d   read  %d %d %v\n", f.idx, len(b), r, err)
 	//log.Printf("%02x %02x %02x %02x\n", b[0], b[1], b[2], b[3])
 	return r, err
 }
 
-func (f *FakeConn) Write(b []byte) (n int, err error) {
+func (f *fakeConn) Write(b []byte) (n int, err error) {
 	//log.Printf("F%02d   write %d %d\n", f.idx, len(b), len(b))
 	return len(b), nil
 }
@@ -65,7 +65,7 @@ func handleStream(r io.Reader, netflow gopacket.Flow, tcpflow gopacket.Flow) {
 	//src, _ := tcpflow.Endpoints()
 	if true {
 		found_cert := false
-		conn := tls_clone.Client(&FakeConn{flow: data, idx: idx}, &tls_clone.Config{InsecureSkipVerify: true})
+		conn := tls_clone.Client(&fakeConn{flow: data, idx: idx}, &tls_clone.Config{InsecureSkipVerify: true})
 		conn.Handshake()
 
 		for _, cert := range conn.PeerCertificates() {
