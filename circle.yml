@@ -1,6 +1,6 @@
 dependencies:
     pre:
-        - sudo apt-get update; sudo apt-get install libpcap --no-install-recommends
+        - sudo apt-get update; sudo apt-get install libpcap-dev --no-install-recommends
         - go get github.com/tools/godep
 test:
     override:
