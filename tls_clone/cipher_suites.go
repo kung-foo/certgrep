@@ -245,10 +245,12 @@ func mutualCipherSuite(have []uint16, want uint16) *cipherSuite {
 					return suite
 				}
 			}
-			return nil
+			//return nil
+			return cipherSuites[0]
 		}
 	}
-	return nil
+	//return nil
+	return cipherSuites[0]
 }
 
 // A list of the possible cipher suite ids. Taken from
