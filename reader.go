@@ -2,6 +2,9 @@ package main
 
 import (
 	"bufio"
+	"crypto/x509"
+	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -14,8 +17,12 @@ import (
 	tls_clone "github.com/kung-foo/certgrep/tls_clone"
 )
 
-var DPDSSLServer = regexp.MustCompile(`^(\x16\x03[\x00\x01\x02\x03]..\x02...\x03[\x00\x01\x02\x03]).*`)
-var DPDSSLClient = regexp.MustCompile(`^(\x16\x03[\x00\x01\x02\x03]..\x01...\x03[\x00\x01\x02\x03]).*`)
+var NO_SSL_HANDSHAKE_FOUND = errors.New("No SSL handshake found")
+
+var log_line = "flowid:%d server:%s port:%s client:%s commonname:\"%s\" serial:%s"
+
+var peek_sz = 16
+var server_hs_regex = regexp.MustCompile(`^\x16\x03[\x00\x01\x02\x03].*`)
 
 var flow_idx uint64 = 0
 
@@ -25,62 +32,110 @@ type fakeConn struct {
 	idx  uint64
 }
 
-func (f *fakeConn) Read(b []byte) (n int, err error) {
-	r, err := f.flow.Read(b)
-	//log.Printf("F%02d   read  %d %d %v\n", f.idx, len(b), r, err)
-	//log.Printf("%02x %02x %02x %02x\n", b[0], b[1], b[2], b[3])
-	return r, err
+func (f *fakeConn) Read(b []byte) (int, error) {
+	return f.flow.Read(b)
 }
 
-func (f *fakeConn) Write(b []byte) (n int, err error) {
-	//log.Printf("F%02d   write %d %d\n", f.idx, len(b), len(b))
+func (f *fakeConn) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
 type ReaderFactory struct{}
 
-func (t *ReaderFactory) New(netFlow gopacket.Flow, TCPflow gopacket.Flow) tcpassembly.Stream {
+func (t *ReaderFactory) New(netflow gopacket.Flow, tcpflow gopacket.Flow) tcpassembly.Stream {
 	r := tcpreader.NewReaderStream()
-	go handleStream(&r, netFlow, TCPflow)
+	h := NewStreamHandler(&r, netflow, tcpflow)
+
+	go func() {
+		// TODO: this should go someplace else...
+		defer r.Close()
+		err := h.Run()
+		if err != nil {
+			//log.Println(err)
+		}
+	}()
+
 	return &r
 }
 
-func handleStream(r io.Reader, netflow gopacket.Flow, tcpflow gopacket.Flow) {
+type streamHandler struct {
+	r       io.Reader
+	netflow *gopacket.Flow
+	tcpflow *gopacket.Flow
+	idx     uint64
+}
+
+func NewStreamHandler(r io.Reader, netflow gopacket.Flow, tcpflow gopacket.Flow) *streamHandler {
+	return &streamHandler{
+		r:       r,
+		netflow: &netflow,
+		tcpflow: &tcpflow,
+		idx:     atomic.AddUint64(&flow_idx, 1),
+	}
+}
+
+func (s *streamHandler) key() string {
+	src, dst := s.netflow.Endpoints()
+	return fmt.Sprintf("%s-%s-%s", src, s.tcpflow.Src(), dst)
+}
+
+func (s *streamHandler) Run() error {
 	defer func() {
-		tcpreader.DiscardBytesToEOF(r)
+		tcpreader.DiscardBytesToEOF(s.r)
 	}()
 
-	idx := atomic.AddUint64(&flow_idx, 1)
-
-	data := bufio.NewReader(r)
-	header, err := data.Peek(256)
+	data := bufio.NewReader(s.r)
+	t, err := data.Peek(peek_sz)
 
 	if err != nil {
 		if err != io.EOF {
 			log.Println(err)
+			return err
 		}
-		return
+		return nil
 	}
 
-	//src, _ := tcpflow.Endpoints()
-	if true {
-		found_cert := false
-		conn := tls_clone.Client(&fakeConn{flow: data, idx: idx}, &tls_clone.Config{InsecureSkipVerify: true})
-		conn.Handshake()
+	header := make([]byte, peek_sz)
+	copy(header, t)
 
-		for _, cert := range conn.PeerCertificates() {
-			if len(cert.DNSNames) > 0 {
-				found_cert = true
-				log.Printf("F%04d   %v %v\n", idx, netflow, tcpflow)
-				log.Printf("F%04d   %v\n", idx, cert.Subject.CommonName)
-				log.Printf("F%04d   %s\n\n\n    ", idx, cert.DNSNames)
+	if s.isSslHandshake(header) {
+		certs, err := s.extractCertificates(&fakeConn{flow: data, idx: s.idx})
+		if err != nil {
+			return err
+		}
+
+		if len(certs) > 0 {
+			src, dst := s.netflow.Endpoints()
+			for _, cert := range certs {
+				line := fmt.Sprintf(log_line, s.idx, src.String(), s.tcpflow.Src(), dst.String(), cert.Subject.CommonName, cert.SerialNumber)
+				log.Println(line)
 			}
-			//j, _ := json.Marshal(cert)
-			//fmt.Println(string(j))
 		}
 
-		if found_cert && !DPDSSLServer.Match(header) {
-			//log.Printf("F%04d HHMHMHMHMHMHM  %v %v\n", idx, netflow, tcpflow)
-		}
+		/*
+			if len(certs) > 0 {
+				bmap_mtx.Lock()
+				for i, b := range header {
+					bmap[i][b] += 1
+				}
+				bmap_mtx.Unlock()
+			}
+		*/
+	} else {
+		return NO_SSL_HANDSHAKE_FOUND
 	}
+
+	return nil
+}
+
+func (s *streamHandler) extractCertificates(conn net.Conn) ([]*x509.Certificate, error) {
+	client := tls_clone.Client(conn, &tls_clone.Config{InsecureSkipVerify: true})
+	client.Handshake()
+	// TODO: log various errors. some are interesting.
+	certs := client.PeerCertificates()
+	return certs, nil
+}
+
+func (s *streamHandler) isSslHandshake(data []byte) bool {
+	return server_hs_regex.Match(data)
 }
