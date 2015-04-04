@@ -20,7 +20,7 @@ goconvey:
 	#goconvey -gobin='godepgo'
 	goconvey
 
-test: certgrep
+test:
 	godep go test -cover -v ./...
 
 clean:
