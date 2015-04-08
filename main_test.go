@@ -20,6 +20,7 @@ func TestMainArgs(t *testing.T) {
 
 }
 
+/*
 func TestMainFullIntegration(t *testing.T) {
 	Convey("when running from main()", t, func() {
 		Convey("it should panic when", func() {
@@ -40,3 +41,4 @@ func TestMainFullIntegration(t *testing.T) {
 		})
 	})
 }
+*/

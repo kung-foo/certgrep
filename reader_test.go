@@ -10,6 +10,13 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 
+func TestCleanup(t *testing.T) {
+	Convey("domains with invalid chars should be filtered", t, func() {
+		So(cleanupName("www.google.com"), ShouldEqual, "www.google.com")
+		So(cleanupName("*.google.com"), ShouldEqual, ".google.com")
+	})
+}
+
 func TestSslHandshake(t *testing.T) {
 	Convey("Raw bytes should be a server->client handshake", t, func() {
 		sh := &streamHandler{}

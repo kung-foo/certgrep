@@ -3,11 +3,14 @@ package main
 import (
 	"bufio"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
+	"path/filepath"
 	"regexp"
 	"sync/atomic"
 
@@ -23,6 +26,16 @@ var log_line = "flowid:%d server:%s port:%s client:%s commonname:\"%s\" serial:%
 
 var peek_sz = 16
 var server_hs_regex = regexp.MustCompile(`^\x16\x03[\x00\x01\x02\x03].*`)
+
+var allowed_cn_chars = regexp.MustCompile(`([^a-zA-Z0-9_\.\-])`)
+
+func cleanupName(name string) string {
+	n := allowed_cn_chars.ReplaceAllLiteralString(name, "")
+	if len(n) > 256 {
+		n = n[0:256]
+	}
+	return n
+}
 
 var flow_idx uint64 = 0
 
@@ -106,21 +119,36 @@ func (s *streamHandler) Run() error {
 
 		if len(certs) > 0 {
 			src, dst := s.netflow.Endpoints()
-			for _, cert := range certs {
+			for i, cert := range certs {
 				line := fmt.Sprintf(log_line, s.idx, src.String(), s.tcpflow.Src(), dst.String(), cert.Subject.CommonName, cert.SerialNumber)
 				log.Println(line)
+				if Config.output != "" {
+					commonname := cleanupName(cert.Subject.CommonName)
+					path := filepath.Join(
+						Config.output,
+						fmt.Sprintf("%08d-%02d-%s-%s-%s", s.idx, i, src.String(), s.tcpflow.Src(), commonname))
+
+					if Config.der {
+						ioutil.WriteFile(fmt.Sprintf("%s.der", path), cert.Raw, 0644)
+					}
+
+					// null out some fields that aren't needed in the json
+					cert.Raw = nil
+					cert.RawIssuer = nil
+					cert.RawSubject = nil
+					cert.RawSubjectPublicKeyInfo = nil
+					cert.RawTBSCertificate = nil
+
+					if Config.json {
+						raw, err := json.MarshalIndent(cert, "", "  ")
+						if err != nil {
+							log.Fatal(err)
+						}
+						ioutil.WriteFile(fmt.Sprintf("%s.json", path), raw, 0644)
+					}
+				}
 			}
 		}
-
-		/*
-			if len(certs) > 0 {
-				bmap_mtx.Lock()
-				for i, b := range header {
-					bmap[i][b] += 1
-				}
-				bmap_mtx.Unlock()
-			}
-		*/
 	} else {
 		return NO_SSL_HANDSHAKE_FOUND
 	}

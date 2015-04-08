@@ -1,7 +1,12 @@
 package main
 
 import (
+	"flag"
+	"log"
 	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -10,16 +15,32 @@ import (
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 	"github.com/google/gopacket/tcpassembly"
+	"github.com/rcrowley/go-metrics"
 )
+
+type config struct {
+	output string
+	json   bool
+	der    bool
+}
+
+var Config = &config{}
 
 var bmap = make([][]int, 256)
 var bmap_mtx = sync.RWMutex{}
 
+var (
+	packet_count  = metrics.NewMeter()
+	gr_gauge      = metrics.NewGauge()
+	flushed_count = metrics.NewMeter()
+)
+
+var DEBUG_METRICS = false
+
 var VERSION string
 var usage = `
 Usage:
-    certgrep [options] -p=<pcap>
-    certgrep [options] -i=<interface>
+    certgrep [options] [--format=<format> ...] (-p=<pcap> | -i=<interface>)
     certgrep -h | --help | --version
 
 Options:
@@ -27,7 +48,12 @@ Options:
     --version               Show version.
     -p --pcap=<pcap>        PCAP file to parse
     -i --interface=<iface>  Network interface to listen on
+    -o --output=<output>    Output directory
+    -f --format=<format>    Output format (json|der) [default: json]
     -v                      Enable verbose logging.
+    --assembly-memuse-log
+    --assembly-debug-log
+    --dump-metrics
 `
 
 func main() {
@@ -35,35 +61,19 @@ func main() {
 }
 
 func mainEx(argv []string) {
-	//defer profile.Start(profile.CPUProfile).Stop()
-	/*
-		for i, _ := range bmap {
-			bmap[i] = make([]int, 256)
-		}
-
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, os.Interrupt)
-		go func() {
-			<-c
-			log.Printf("\n\n\n")
-			for i, v := range bmap {
-				var max_c = 0
-				var max_j = 0
-				for j, c := range v {
-					if c > max_c {
-						max_c = c
-						max_j = j
-					}
-				}
-
-				if i < 32 {
-					log.Printf("%02d 0x%02X %d\n", i, max_j, max_c)
-				}
-			}
-			os.Exit(0)
-		}()
-	*/
 	args, _ := docopt.Parse(usage, argv, true, VERSION, true)
+
+	// little hack here to allow gopacket's debug flags to be set from the cmd line
+	flag_args := make([]string, 0)
+
+	if args["--assembly-memuse-log"].(bool) {
+		flag_args = append(flag_args, "-assembly_memuse_log")
+	}
+	if args["--assembly-debug-log"].(bool) {
+		flag_args = append(flag_args, "-assembly_debug_log")
+	}
+
+	flag.CommandLine.Parse(flag_args)
 
 	var handle *pcap.Handle
 	var err error
@@ -71,14 +81,34 @@ func mainEx(argv []string) {
 	if args["--pcap"] != nil {
 		handle, err = pcap.OpenOffline(args["--pcap"].(string))
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 	}
 
 	if args["--interface"] != nil {
 		handle, err = pcap.OpenLive(args["--interface"].(string), 1600, true, pcap.BlockForever)
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
+		}
+	}
+
+	if args["--output"] != nil {
+		path := filepath.Join(args["--output"].(string), strings.Replace(time.Now().UTC().Format(time.RFC3339), ":", "_", -1))
+		if err := os.MkdirAll(path, 0777); err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("writing to %s", path)
+		Config.output = path
+	}
+
+	if args["--format"] != nil {
+		for _, format := range args["--format"].([]string) {
+			if format == "json" {
+				Config.json = true
+			}
+			if format == "der" {
+				Config.der = true
+			}
 		}
 	}
 
@@ -87,15 +117,34 @@ func mainEx(argv []string) {
 	pool := tcpassembly.NewStreamPool(&ReaderFactory{})
 	assembler := tcpassembly.NewAssembler(pool)
 
+	assembler.MaxBufferedPagesPerConnection = 8
+	//assembler.MaxBufferedPagesTotal = 0
+
 	packets := packetSource.Packets()
-	ticker := time.Tick(time.Minute)
+	ticker := time.Tick(time.Second * 10)
+
+	DEBUG_METRICS = args["--dump-metrics"].(bool)
+
+	if DEBUG_METRICS {
+		metrics.Register("packet_count", packet_count)
+		packet_count.Mark(0)
+
+		gr_gauge := metrics.NewGauge()
+		metrics.Register("gr_gauge", gr_gauge)
+		gr_gauge.Update(int64(runtime.NumGoroutine()))
+
+		metrics.Register("flushed_count", flushed_count)
+		flushed_count.Mark(0)
+
+		go metrics.Log(metrics.DefaultRegistry, time.Second*5, log.New(os.Stderr, "metrics: ", log.Lmicroseconds))
+	}
 
 	for {
 		select {
 		case packet := <-packets:
 			// A nil packet indicates the end of a pcap file.
 			if packet == nil {
-				return
+				goto done
 			}
 			if err := packet.ErrorLayer(); err != nil {
 				//fmt.Println(err)
@@ -105,12 +154,24 @@ func mainEx(argv []string) {
 					if tcpLayer := packet.Layer(layers.LayerTypeTCP); tcpLayer != nil {
 						tcp, _ := tcpLayer.(*layers.TCP)
 						assembler.AssembleWithTimestamp(flow, tcp, packet.Metadata().Timestamp)
+						//time.Sleep(time.Microsecond * 1)
+						if DEBUG_METRICS {
+							packet_count.Mark(1)
+						}
 					}
 				}
 			}
 		case <-ticker:
-			// Every minute, flush connections that haven't seen activity in the past 2 minutes.
-			assembler.FlushOlderThan(time.Now().Add(time.Minute * -2))
+			flushed, _ := assembler.FlushOlderThan(time.Now().Add(time.Second * -30))
+			if DEBUG_METRICS {
+				gr_gauge.Update(int64(runtime.NumGoroutine()))
+				flushed_count.Mark(int64(flushed))
+			}
 		}
+	}
+
+done:
+	if DEBUG_METRICS {
+		metrics.WriteOnce(metrics.DefaultRegistry, os.Stdout)
 	}
 }
