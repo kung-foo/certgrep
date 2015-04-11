@@ -22,12 +22,15 @@ import (
 
 var NO_SSL_HANDSHAKE_FOUND = errors.New("No SSL handshake found")
 
-var log_line = "flowid:%d server:%s port:%s client:%s commonname:\"%s\" serial:%s"
+const (
+	peek_sz = 16
+)
 
-var peek_sz = 16
-var server_hs_regex = regexp.MustCompile(`^\x16\x03[\x00\x01\x02\x03].*`)
-
-var allowed_cn_chars = regexp.MustCompile(`([^a-zA-Z0-9_\.\-])`)
+var (
+	server_hs_regex  = regexp.MustCompile(`^\x16\x03[\x00\x01\x02\x03].*`)
+	allowed_cn_chars = regexp.MustCompile(`([^a-zA-Z0-9_\.\-])`)
+	log_line         = "flowid:%d server:%s port:%s client:%s commonname:\"%s\" serial:%s"
+)
 
 func cleanupName(name string) string {
 	n := allowed_cn_chars.ReplaceAllLiteralString(name, "")
