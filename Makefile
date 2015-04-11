@@ -17,8 +17,11 @@ gofmt:
 	gofmt -w .
 
 goconvey:
-	#goconvey -gobin='godepgo'
 	goconvey
+
+update-godeps:
+	rm -rf Godeps
+	godep save
 
 test:
 	godep go test -cover -v ./...
