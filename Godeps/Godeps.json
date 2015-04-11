@@ -17,6 +17,10 @@
 			"Rev": "9a4a02dbe491bef4bab3c24fd9f3087d6c4c6690"
 		},
 		{
+			"ImportPath": "github.com/rcrowley/go-metrics",
+			"Rev": "dee209f2455f101a5e4e593dea94872d2c62d85d"
+		},
+		{
 			"ImportPath": "github.com/smartystreets/assertions",
 			"Comment": "1.5.0-379-g75acd40",
 			"Rev": "75acd402ca38dc205641a826bb58b9de014926dd"
