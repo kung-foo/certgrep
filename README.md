@@ -2,6 +2,8 @@
 
 [![Circle CI](https://circleci.com/gh/kung-foo/certgrep/tree/develop.svg?style=svg)](https://circleci.com/gh/kung-foo/certgrep/tree/develop) [![Coverage Status](https://coveralls.io/repos/kung-foo/certgrep/badge.svg?branch=develop)](https://coveralls.io/r/kung-foo/certgrep?branch=develop)
 
+**certgrep** is a cross-platform command line tool that extracts SSL certificates from either a network interface or a local PCAP file. The certificates are saved in either JSON and/or DER format.
+
 ```
 Usage:
     certgrep [options] [--format=<format> ...] (-p=<pcap> | -i=<interface>)
