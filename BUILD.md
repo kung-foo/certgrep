@@ -9,12 +9,18 @@ Ubuntu
 ------
 * Install Go (>= 1.3) (see: https://golang.org/doc/install)
 * Install dependencies
-      $ sudo apt-get install libpcap-dev build-essential git
-      $ go get -v github.com/tools/godep
+```
+$ sudo apt-get install libpcap-dev build-essential git
+$ go get -v github.com/tools/godep
+```
 * Download source
-      $ git clone https://github.com/kung-foo/certgrep $GOPATH/src/github.com/kung-foo/certgrep
+```
+$ git clone https://github.com/kung-foo/certgrep $GOPATH/src/github.com/kung-foo/certgrep
+```
 * Build
-      $ make build
+```
+$ make build
+```
 
 ### Testing on Ubuntu
 
@@ -32,11 +38,15 @@ Windows
 * WinPcap Developer's Pack (https://www.winpcap.org/devel.htm)
     * Unzip into `c:\WpdPack` (see: [gopacket/pcap/pcap.go ](https://github.com/google/gopacket/blob/master/pcap/pcap.go#L15))
 * Install dependencies
-      go get -v github.com/tools/godep
+```
+go get -v github.com/tools/godep
+```
 * Build binary
-      mingw32-make # if using mingw toolchain
-      # OR
-      godep go build -v
+```
+mingw32-make # if using mingw toolchain
+# OR
+godep go build -v
+```
 
 ### Testing on Windows
 
