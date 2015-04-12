@@ -9,7 +9,7 @@ Build Instructions
 Ubuntu
 ------
 
-For a [Docker](https://www.docker.com/) based build environment please go [here](#Docker).
+For a [Docker](https://www.docker.com/) based build environment please go [here](#docker).
 
 * Install Go (>= 1.3) (see: https://golang.org/doc/install)
 * Install dependencies
