@@ -1,8 +1,14 @@
-# certgrep
+certgrep
+========
 
 [![Circle CI](https://circleci.com/gh/kung-foo/certgrep/tree/develop.svg?style=svg)](https://circleci.com/gh/kung-foo/certgrep/tree/develop) [![Coverage Status](https://coveralls.io/repos/kung-foo/certgrep/badge.svg?branch=develop)](https://coveralls.io/r/kung-foo/certgrep?branch=develop)
 
 **certgrep** is a cross-platform command line tool that extracts SSL certificates from either a network interface or a local PCAP file. The certificates are saved in either JSON and/or DER format.
+
+Utilizes [google/gopacket] (https://github.com/google/gopacket)
+
+Usage
+-----
 
 ```
 Usage:
@@ -15,8 +21,10 @@ Options:
     -p --pcap=<pcap>        PCAP file to parse
     -i --interface=<iface>  Network interface to listen on
     -o --output=<output>    Output directory
-    -f --format=<format>    Output format (json|der) [default: json]
-    -v                      Enable verbose logging.
+    -f --format=<format>    Output format (json|yaml|der) [default: json]
+    -b --bpf=<bpf>          Capture filter [default: tcp]
+    --no-color              Disabled colored output
+    -v --verbose            Enable verbose logging
     --assembly-memuse-log
     --assembly-debug-log
     --dump-metrics

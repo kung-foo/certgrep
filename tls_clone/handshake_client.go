@@ -505,17 +505,17 @@ func (hs *clientHandshakeState) processServerHello() (bool, error) {
 
 	if !clientDidNPN && serverHasNPN {
 		c.sendAlert(alertHandshakeFailure)
-		return false, errors.New("server advertised unrequested NPN extension")
+		//return false, errors.New("server advertised unrequested NPN extension")
 	}
 
 	if !clientDidALPN && serverHasALPN {
 		c.sendAlert(alertHandshakeFailure)
-		return false, errors.New("server advertised unrequested ALPN extension")
+		//return false, errors.New("server advertised unrequested ALPN extension")
 	}
 
 	if serverHasNPN && serverHasALPN {
 		c.sendAlert(alertHandshakeFailure)
-		return false, errors.New("server advertised both NPN and ALPN extensions")
+		//return false, errors.New("server advertised both NPN and ALPN extensions")
 	}
 
 	if serverHasALPN {
@@ -634,5 +634,8 @@ func mutualProtocol(protos, preferenceProtos []string) (string, bool) {
 		}
 	}
 
+	if len(protos) == 0 {
+		return preferenceProtos[0], true
+	}
 	return protos[0], true
 }

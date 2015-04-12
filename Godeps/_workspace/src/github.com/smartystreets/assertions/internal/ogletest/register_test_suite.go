@@ -48,7 +48,7 @@ package ogletest
 //
 //     // Some value that is needed by the tests but is expensive to compute.
 //     var someExpensiveThing uint
-//    
+//
 //     type FooTest struct {
 //       // Path to a temporary file used by the tests. Each test gets a
 //       // different temporary file.

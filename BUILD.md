@@ -4,9 +4,13 @@ Build Instructions
 ### Common Requirements
 * Go (https://golang.org/)
 * godep (https://github.com/tools/godep)
+* libpcap
 
 Ubuntu
 ------
+
+For a [Docker](https://www.docker.com/) based build environment please go [here](#Docker).
+
 * Install Go (>= 1.3) (see: https://golang.org/doc/install)
 * Install dependencies
 ```
@@ -55,4 +59,23 @@ certgrep.exe -p testdata\sess_smtps.pcapng
 2015/04/11 18:28:31 flowid:2 server:68.114.188.72 port:587 client:10.74.5.100 commonname:"mobile.charter.net" serial:73397715042707340270384354846404777809
 2015/04/11 18:28:31 flowid:2 server:68.114.188.72 port:587 client:10.74.5.100 commonname:"Thawte SSL CA" serial:102844720425577770632960998383784151532
 2015/04/11 18:28:31 flowid:2 server:68.114.188.72 port:587 client:10.74.5.100 commonname:"thawte Primary Root CA" serial:68316673031993696956121215362381360273
+```
+
+Docker
+------
+> Note: **libpcap** is still required to run **certgrep**
+
+```
+$ make docker-build-shell
+docker build -t jonathancamp/certgrep .
+...
+Successfully built f20ea8b8781d
+...
+run make to build certgrep
+root@7052acf56fe8:/go/src/github.com/kung-foo/certgrep# make
+...
+Built ./certgrep-linux-amd64
+root@7052acf56fe8:/go/src/github.com/kung-foo/certgrep# exit
+$ ./certgrep-linux-amd64 --version
+certgrep version v0.0.1+6604387
 ```

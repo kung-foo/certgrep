@@ -1,23 +1,36 @@
 VERSION := v0.0.1
 BUILDSTRING := $(shell git log --pretty=format:'%h' -n 1)
 VERSIONSTRING := certgrep version $(VERSION)+$(BUILDSTRING)
+DIMAGE := kung-foo/certgrep
 
-.PHONY: default gofmt all test clean goconvey
+ifndef GOARCH
+	GOARCH := $(shell go env GOARCH)
+endif
 
-default: all
+ifndef GOOS
+	GOOS := $(shell go env GOOS)
+endif
 
-all: gofmt test build
+OUTPUT := certgrep-$(GOOS)-$(GOARCH)
 
-certgrep: main.go reader.go tls_clone/hackage.go
-	godep go build -v -ldflags "-X main.VERSION \"$(VERSIONSTRING)\""
+.PHONY: default gofmt all test clean goconvey docker-build
 
-build: certgrep
+default: build
+
+$(OUTPUT): main.go reader.go tls_clone/hackage.go
+	godep go build -v -o $(OUTPUT) -ldflags "-X main.VERSION \"$(VERSIONSTRING)\"" .
+ifdef CALLING_UID
+ifdef CALLING_GID
+	chown $(CALLING_UID):$(CALLING_GID) $(OUTPUT)
+endif
+endif
+	@echo
+	@echo Built ./$(OUTPUT)
+
+build: $(OUTPUT)
 
 gofmt:
 	gofmt -w .
-
-goconvey:
-	goconvey
 
 update-godeps:
 	rm -rf Godeps
@@ -27,4 +40,16 @@ test:
 	godep go test -cover -v ./...
 
 clean:
-	rm -f certgrep
+	rm -f $(OUTPUT)
+
+docker-build:
+	docker build -t $(DIMAGE) .
+
+docker-build-shell: docker-build
+	docker run \
+		--rm -it \
+		-v $(PWD):/go/src/github.com/kung-foo/certgrep \
+		-e CALLING_UID=$(shell id -u) \
+		-e CALLING_GID=$(shell id -g) \
+		$(DIMAGE) \
+		bash -i

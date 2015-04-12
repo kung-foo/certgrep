@@ -15,13 +15,16 @@ import (
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 	"github.com/google/gopacket/tcpassembly"
+	"github.com/mgutz/ansi"
 	"github.com/rcrowley/go-metrics"
 )
 
 type config struct {
-	output string
-	json   bool
-	der    bool
+	output  string
+	json    bool
+	der     bool
+	yaml    bool
+	verbose bool
 }
 
 var Config = &config{}
@@ -33,6 +36,10 @@ var (
 	packet_count  = metrics.NewMeter()
 	gr_gauge      = metrics.NewGauge()
 	flushed_count = metrics.NewMeter()
+)
+
+const (
+	snaplen = 65536
 )
 
 var DEBUG_METRICS = false
@@ -49,8 +56,10 @@ Options:
     -p --pcap=<pcap>        PCAP file to parse
     -i --interface=<iface>  Network interface to listen on
     -o --output=<output>    Output directory
-    -f --format=<format>    Output format (json|der) [default: json]
-    -v                      Enable verbose logging.
+    -f --format=<format>    Output format (json|yaml|der) [default: json]
+    -b --bpf=<bpf>          Capture filter [default: tcp]
+    --no-color              Disabled colored output
+    -v --verbose            Enable verbose logging
     --assembly-memuse-log
     --assembly-debug-log
     --dump-metrics
@@ -62,6 +71,10 @@ func main() {
 
 func mainEx(argv []string) {
 	args, _ := docopt.Parse(usage, argv, true, VERSION, true)
+
+	if args["--no-color"].(bool) {
+		ansi.DisableColors(true)
+	}
 
 	// little hack here to allow gopacket's debug flags to be set from the cmd line
 	flag_args := make([]string, 0)
@@ -75,6 +88,12 @@ func mainEx(argv []string) {
 
 	flag.CommandLine.Parse(flag_args)
 
+	Config.verbose = args["--verbose"].(bool)
+
+	if Config.verbose {
+		log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
+	}
+
 	var handle *pcap.Handle
 	var err error
 
@@ -86,10 +105,14 @@ func mainEx(argv []string) {
 	}
 
 	if args["--interface"] != nil {
-		handle, err = pcap.OpenLive(args["--interface"].(string), 1600, true, pcap.BlockForever)
+		handle, err = pcap.OpenLive(args["--interface"].(string), snaplen, true, pcap.BlockForever)
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	if err := handle.SetBPFFilter(args["--bpf"].(string)); err != nil {
+		log.Fatal("error setting BPF filter: ", err)
 	}
 
 	if args["--output"] != nil {
@@ -109,6 +132,9 @@ func mainEx(argv []string) {
 			if format == "der" {
 				Config.der = true
 			}
+			if format == "yaml" {
+				Config.yaml = true
+			}
 		}
 	}
 
@@ -117,11 +143,11 @@ func mainEx(argv []string) {
 	pool := tcpassembly.NewStreamPool(&ReaderFactory{})
 	assembler := tcpassembly.NewAssembler(pool)
 
-	assembler.MaxBufferedPagesPerConnection = 8
+	//assembler.MaxBufferedPagesPerConnection = 8
 	//assembler.MaxBufferedPagesTotal = 0
 
 	packets := packetSource.Packets()
-	ticker := time.Tick(time.Second * 10)
+	ticker := time.Tick(time.Second * 2)
 
 	DEBUG_METRICS = args["--dump-metrics"].(bool)
 
@@ -162,7 +188,7 @@ func mainEx(argv []string) {
 				}
 			}
 		case <-ticker:
-			flushed, _ := assembler.FlushOlderThan(time.Now().Add(time.Second * -30))
+			flushed, _ := assembler.FlushOlderThan(time.Now().Add(time.Second * -10))
 			if DEBUG_METRICS {
 				gr_gauge.Update(int64(runtime.NumGoroutine()))
 				flushed_count.Mark(int64(flushed))

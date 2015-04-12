@@ -14,13 +14,27 @@ import (
 	"regexp"
 	"sync/atomic"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/tcpassembly"
 	"github.com/google/gopacket/tcpassembly/tcpreader"
 	tls_clone "github.com/kung-foo/certgrep/tls_clone"
+	"github.com/mgutz/ansi"
 )
 
-var NO_SSL_HANDSHAKE_FOUND = errors.New("No SSL handshake found")
+var (
+	NO_SSL_HANDSHAKE_FOUND = errors.New("No SSL handshake found")
+
+	// generally these errors do not keep the certificates from being extracted
+	IGNORED_TLS_ERRORS = map[string]bool{
+		"tls: received unexpected handshake message of type *tls.clientHelloMsg when waiting for *tls.serverHelloMsg": true,
+		"crypto/rsa: verification error":                                                                              true,
+		"local error: bad record MAC":                                                                                 true,
+		"ECDSA verification failure":                                                                                  true,
+		"tls: server selected unsupported curve":                                                                      true,
+	}
+)
 
 const (
 	peek_sz = 16
@@ -29,7 +43,8 @@ const (
 var (
 	server_hs_regex  = regexp.MustCompile(`^\x16\x03[\x00\x01\x02\x03].*`)
 	allowed_cn_chars = regexp.MustCompile(`([^a-zA-Z0-9_\.\-])`)
-	log_line         = "flowid:%d server:%s port:%s client:%s commonname:\"%s\" serial:%s"
+	log_line         = "%s commonname:\"%s\" serial:%s"
+	red_error        = ansi.ColorFunc("red+b")
 )
 
 func cleanupName(name string) string {
@@ -40,16 +55,19 @@ func cleanupName(name string) string {
 	return n
 }
 
-var flow_idx uint64 = 0
+var atomic_flow_idx uint64 = 0
 
 type fakeConn struct {
 	net.Conn
-	flow io.Reader
-	idx  uint64
+	flow       io.Reader
+	idx        uint64
+	bytes_read int
 }
 
 func (f *fakeConn) Read(b []byte) (int, error) {
-	return f.flow.Read(b)
+	n, err := f.flow.Read(b)
+	f.bytes_read += n
+	return n, err
 }
 
 func (f *fakeConn) Write(b []byte) (int, error) {
@@ -75,10 +93,11 @@ func (t *ReaderFactory) New(netflow gopacket.Flow, tcpflow gopacket.Flow) tcpass
 }
 
 type streamHandler struct {
-	r       io.Reader
-	netflow *gopacket.Flow
-	tcpflow *gopacket.Flow
-	idx     uint64
+	r           io.Reader
+	netflow     *gopacket.Flow
+	tcpflow     *gopacket.Flow
+	idx         uint64
+	found_certs bool
 }
 
 func NewStreamHandler(r io.Reader, netflow gopacket.Flow, tcpflow gopacket.Flow) *streamHandler {
@@ -86,8 +105,12 @@ func NewStreamHandler(r io.Reader, netflow gopacket.Flow, tcpflow gopacket.Flow)
 		r:       r,
 		netflow: &netflow,
 		tcpflow: &tcpflow,
-		idx:     atomic.AddUint64(&flow_idx, 1),
+		idx:     atomic.AddUint64(&atomic_flow_idx, 1),
 	}
+}
+
+func (s *streamHandler) hash() string {
+	return fmt.Sprintf("%016x", s.tcpflow.FastHash())
 }
 
 func (s *streamHandler) key() string {
@@ -95,9 +118,21 @@ func (s *streamHandler) key() string {
 	return fmt.Sprintf("%s-%s-%s", src, s.tcpflow.Src(), dst)
 }
 
+func (s *streamHandler) logPrefix() string {
+	src, dst := s.netflow.Endpoints()
+	if Config.verbose {
+		return fmt.Sprintf("flowidx:%d flowhash:%s server:%s port:%s client:%s", s.idx, s.hash(), src.String(), s.tcpflow.Src(), dst.String())
+	} else {
+		return fmt.Sprintf("server:%s port:%s client:%s", src.String(), s.tcpflow.Src(), dst.String())
+	}
+}
+
 func (s *streamHandler) Run() error {
 	defer func() {
-		tcpreader.DiscardBytesToEOF(s.r)
+		n := tcpreader.DiscardBytesToEOF(s.r)
+		if s.found_certs && Config.verbose {
+			log.Printf("%s DiscardBytesToEOF:%d", s.logPrefix(), n)
+		}
 	}()
 
 	data := bufio.NewReader(s.r)
@@ -120,10 +155,12 @@ func (s *streamHandler) Run() error {
 			return err
 		}
 
-		if len(certs) > 0 {
-			src, dst := s.netflow.Endpoints()
+		s.found_certs = len(certs) > 0
+
+		if s.found_certs {
+			src, _ := s.netflow.Endpoints()
 			for i, cert := range certs {
-				line := fmt.Sprintf(log_line, s.idx, src.String(), s.tcpflow.Src(), dst.String(), cert.Subject.CommonName, cert.SerialNumber)
+				line := fmt.Sprintf(log_line, s.logPrefix(), cert.Subject.CommonName, cert.SerialNumber)
 				log.Println(line)
 				if Config.output != "" {
 					commonname := cleanupName(cert.Subject.CommonName)
@@ -135,7 +172,9 @@ func (s *streamHandler) Run() error {
 						ioutil.WriteFile(fmt.Sprintf("%s.der", path), cert.Raw, 0644)
 					}
 
-					// null out some fields that aren't needed in the json
+					// TODO: convert crypto/x509 into something were I control the serialization
+
+					// null out some fields that aren't needed in the json/yaml
 					cert.Raw = nil
 					cert.RawIssuer = nil
 					cert.RawSubject = nil
@@ -149,6 +188,14 @@ func (s *streamHandler) Run() error {
 						}
 						ioutil.WriteFile(fmt.Sprintf("%s.json", path), raw, 0644)
 					}
+
+					if Config.yaml {
+						raw, err := yaml.Marshal(cert)
+						if err != nil {
+							log.Fatal(err)
+						}
+						ioutil.WriteFile(fmt.Sprintf("%s.yaml", path), raw, 0644)
+					}
 				}
 			}
 		}
@@ -161,7 +208,17 @@ func (s *streamHandler) Run() error {
 
 func (s *streamHandler) extractCertificates(conn net.Conn) ([]*x509.Certificate, error) {
 	client := tls_clone.Client(conn, &tls_clone.Config{InsecureSkipVerify: true})
-	client.Handshake()
+	err := client.Handshake()
+	if !IGNORED_TLS_ERRORS[err.Error()] {
+		if s.netflow != nil && Config.verbose {
+			if len(client.PeerCertificates()) == 0 {
+				log.Printf("%s %s %v", red_error("ERROR"), s.logPrefix(), err)
+			} else {
+				// possibly ignoreable error
+				log.Printf("%s %s %v", red_error("ADD TO IGNORE"), s.logPrefix(), err)
+			}
+		}
+	}
 	// TODO: log various errors. some are interesting.
 	certs := client.PeerCertificates()
 	return certs, nil

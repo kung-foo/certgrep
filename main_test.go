@@ -1,6 +1,10 @@
 package main
 
 import (
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/docopt/docopt-go"
@@ -18,6 +22,46 @@ func TestMainArgs(t *testing.T) {
 		So(args, ShouldBeEmpty)
 	})
 
+}
+
+func TestEnd2End(t *testing.T) {
+	Convey("write certificates to file", t, func() {
+		output, err := ioutil.TempDir("", "goconvey")
+		So(err, ShouldBeNil)
+		defer os.Remove(output)
+
+		argv := []string{
+			"--pcap", "testdata/sess_smtps.pcapng",
+			"--output", output,
+			"--format", "json",
+			"--format", "der",
+			"--format", "yaml",
+			"--no-color",
+		}
+
+		mainEx(argv)
+
+		matches, err := filepath.Glob(output + "/*")
+		So(err, ShouldBeNil)
+		So(len(matches), ShouldEqual, 1)
+		capture_dir := matches[0]
+
+		for _, format := range []string{"der", "json", "yaml"} {
+			Convey(fmt.Sprintf("%s should be correct", format), func() {
+				matches, err := filepath.Glob(capture_dir + "/*." + format)
+				So(err, ShouldBeNil)
+				So(len(matches), ShouldEqual, 3)
+
+				for _, f := range matches {
+					h, err := os.Open(f)
+					So(err, ShouldBeNil)
+					s, err := h.Stat()
+					So(err, ShouldBeNil)
+					So(s.Size(), ShouldBeGreaterThan, 0)
+				}
+			})
+		}
+	})
 }
 
 /*
