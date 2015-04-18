@@ -6,6 +6,7 @@ dependencies:
         - go get github.com/mattn/goveralls
     post:
         - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 99
+        - sudo apt-get install --only-upgrade libpcap0.8
 test:
     override:
         - godep go test -covermode=count -coverprofile=profile.cov
