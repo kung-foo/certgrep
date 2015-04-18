@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -26,6 +27,7 @@ type config struct {
 	yaml         bool
 	verbose      bool
 	very_verbose bool
+	metrics      bool
 }
 
 var Config = &config{}
@@ -37,13 +39,13 @@ var (
 	packet_count  = metrics.NewMeter()
 	gr_gauge      = metrics.NewGauge()
 	flushed_count = metrics.NewMeter()
+	do_flush      = metrics.NewMeter()
 )
 
 const (
 	snaplen = 65536
+	max_age = 10 * time.Second
 )
-
-var DEBUG_METRICS = false
 
 var VERSION string
 var usage = `
@@ -154,11 +156,11 @@ func mainEx(argv []string) {
 	//assembler.MaxBufferedPagesTotal = 0
 
 	packets := packetSource.Packets()
-	ticker := time.Tick(time.Second * 2)
+	ticker := time.Tick(max_age)
 
-	DEBUG_METRICS = args["--dump-metrics"].(bool)
+	Config.metrics = args["--dump-metrics"].(bool)
 
-	if DEBUG_METRICS {
+	if Config.metrics {
 		metrics.Register("packet_count", packet_count)
 		packet_count.Mark(0)
 
@@ -169,19 +171,50 @@ func mainEx(argv []string) {
 		metrics.Register("flushed_count", flushed_count)
 		flushed_count.Mark(0)
 
+		metrics.Register("do_flush", do_flush)
+		do_flush.Mark(0)
+
 		go metrics.Log(metrics.DefaultRegistry, time.Second*5, log.New(os.Stderr, "metrics: ", log.Lmicroseconds))
 	}
 
+	var last_flush time.Time
+	var first_packet time.Time
+	var current time.Time
+	var processed int64
+	var c int64
+
+	on_SIGINT := make(chan os.Signal, 1)
+	signal.Notify(on_SIGINT, os.Interrupt)
+
+	start := time.Now()
+
 	for {
 		select {
+		case <-on_SIGINT:
+			goto done
 		case packet := <-packets:
 			// A nil packet indicates the end of a pcap file.
 			if packet == nil {
+				if Config.verbose {
+					log.Print("last packet, goodbye.")
+				}
 				goto done
 			}
+
+			current = packet.Metadata().Timestamp
+			processed += int64(len(packet.Data()))
+			c++
+
+			// first packet
+			if last_flush.IsZero() {
+				last_flush = current
+				first_packet = current
+			}
+
 			if Config.very_verbose {
 				log.Printf("%+v\n", packet)
 			}
+
 			if err := packet.ErrorLayer(); err != nil {
 				//fmt.Println(err)
 			} else {
@@ -189,25 +222,47 @@ func mainEx(argv []string) {
 					flow := netLayer.NetworkFlow()
 					if tcpLayer := packet.Layer(layers.LayerTypeTCP); tcpLayer != nil {
 						tcp, _ := tcpLayer.(*layers.TCP)
-						assembler.AssembleWithTimestamp(flow, tcp, packet.Metadata().Timestamp)
-						//time.Sleep(time.Microsecond * 1)
-						if DEBUG_METRICS {
+						assembler.AssembleWithTimestamp(flow, tcp, current)
+						if Config.metrics {
 							packet_count.Mark(1)
 						}
 					}
 				}
 			}
+
+			if current.Sub(last_flush) > max_age {
+				flushed, _ := assembler.FlushOlderThan(last_flush)
+				last_flush = current
+				if Config.metrics {
+					gr_gauge.Update(int64(runtime.NumGoroutine()))
+					flushed_count.Mark(int64(flushed))
+					do_flush.Mark(1)
+				}
+			}
 		case <-ticker:
-			flushed, _ := assembler.FlushOlderThan(time.Now().Add(time.Second * -10))
-			if DEBUG_METRICS {
+			flushed, _ := assembler.FlushOlderThan(time.Now().Add(-1 * max_age))
+			if Config.metrics {
 				gr_gauge.Update(int64(runtime.NumGoroutine()))
 				flushed_count.Mark(int64(flushed))
+				do_flush.Mark(1)
 			}
 		}
 	}
 
 done:
-	if DEBUG_METRICS {
+	log.Printf("capture time: %.f seconds", current.Sub(first_packet).Seconds())
+	log.Printf("capture size: %d bytes", processed)
+	bps := 8 * (float64(processed) / current.Sub(first_packet).Seconds())
+	if bps < 1024*1024 {
+		log.Printf("average capture rate: %.3f Kbit/s", bps/1024)
+	} else if bps < 1024*1024*1024 {
+		log.Printf("average capture rate: %.3f Mbit/s", bps/(1024*1024))
+	} else {
+		log.Printf("average capture rate: %.3f Gbit/s", bps/(1024*1024*1024))
+	}
+	log.Printf("pps: %.f", float64(c)/time.Now().Sub(start).Seconds())
+
+	if Config.metrics {
 		metrics.WriteOnce(metrics.DefaultRegistry, os.Stdout)
 	}
 }
