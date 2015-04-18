@@ -12,7 +12,7 @@ Usage
 
 ```
 Usage:
-    certgrep [options] [--format=<format> ...] (-p=<pcap> | -i=<interface>)
+    certgrep [options] [--format=<format> ...] [-v ...] (-p=<pcap> | -i=<interface>)
     certgrep -h | --help | --version
 
 Options:
@@ -24,7 +24,7 @@ Options:
     -f --format=<format>    Output format (json|yaml|der) [default: json]
     -b --bpf=<bpf>          Capture filter [default: tcp]
     --no-color              Disabled colored output
-    -v --verbose            Enable verbose logging
+    -v                      Enable verbose logging (-vv for very verbose)
     --assembly-memuse-log
     --assembly-debug-log
     --dump-metrics
