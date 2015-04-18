@@ -141,6 +141,7 @@ func mainEx(argv []string) {
 	}
 
 	if Config.verbose {
+		log.Printf("pcap_lib_version: %s", pcap.Version())
 		log.Printf("LinkType: %s", handle.LinkType())
 	}
 
