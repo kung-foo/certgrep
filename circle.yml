@@ -1,6 +1,6 @@
 dependencies:
     pre:
-        - sudo apt-get update; sudo apt-get install libpcap-dev --no-install-recommends
+        - sudo apt-get update; sudo apt-get install libpcap-dev gcc-4.8 --no-install-recommends
         - go get github.com/tools/godep
         - go get golang.org/x/tools/cmd/cover
         - go get github.com/mattn/goveralls
