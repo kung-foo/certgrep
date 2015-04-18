@@ -17,7 +17,7 @@ OUTPUT := certgrep-$(GOOS)-$(GOARCH)
 
 default: build
 
-$(OUTPUT): main.go reader.go tls_clone/hackage.go
+$(OUTPUT): main.go reader.go tls_clone/*.go
 	godep go build -v -o $(OUTPUT) -ldflags "-X main.VERSION \"$(VERSIONSTRING)\"" .
 ifdef CALLING_UID
 ifdef CALLING_GID
@@ -51,5 +51,6 @@ docker-build-shell: docker-build
 		-v $(PWD):/go/src/github.com/kung-foo/certgrep \
 		-e CALLING_UID=$(shell id -u) \
 		-e CALLING_GID=$(shell id -g) \
+		-e HISTFILE="" \
 		$(DIMAGE) \
 		bash -i
