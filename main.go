@@ -20,11 +20,12 @@ import (
 )
 
 type config struct {
-	output  string
-	json    bool
-	der     bool
-	yaml    bool
-	verbose bool
+	output       string
+	json         bool
+	der          bool
+	yaml         bool
+	verbose      bool
+	very_verbose bool
 }
 
 var Config = &config{}
@@ -47,7 +48,7 @@ var DEBUG_METRICS = false
 var VERSION string
 var usage = `
 Usage:
-    certgrep [options] [--format=<format> ...] (-p=<pcap> | -i=<interface>)
+    certgrep [options] [--format=<format> ...] [-v ...] (-p=<pcap> | -i=<interface>)
     certgrep -h | --help | --version
 
 Options:
@@ -59,7 +60,7 @@ Options:
     -f --format=<format>    Output format (json|yaml|der) [default: json]
     -b --bpf=<bpf>          Capture filter [default: tcp]
     --no-color              Disabled colored output
-    -v --verbose            Enable verbose logging
+    -v                      Enable verbose logging (-vv for very verbose)
     --assembly-memuse-log
     --assembly-debug-log
     --dump-metrics
@@ -88,7 +89,8 @@ func mainEx(argv []string) {
 
 	flag.CommandLine.Parse(flag_args)
 
-	Config.verbose = args["--verbose"].(bool)
+	Config.verbose = args["-v"].(int) > 0
+	Config.very_verbose = args["-v"].(int) > 1
 
 	if Config.verbose {
 		log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
@@ -138,6 +140,10 @@ func mainEx(argv []string) {
 		}
 	}
 
+	if Config.verbose {
+		log.Printf("LinkType: %s", handle.LinkType())
+	}
+
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 
 	pool := tcpassembly.NewStreamPool(&ReaderFactory{})
@@ -171,6 +177,9 @@ func mainEx(argv []string) {
 			// A nil packet indicates the end of a pcap file.
 			if packet == nil {
 				goto done
+			}
+			if Config.very_verbose {
+				log.Printf("%+v\n", packet)
 			}
 			if err := packet.ErrorLayer(); err != nil {
 				//fmt.Println(err)
