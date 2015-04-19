@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-	"crypto/sha256"
+	"crypto/sha1"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
@@ -166,7 +166,7 @@ func (s *streamHandler) Run() error {
 			src, dst := s.netflow.Endpoints()
 			for i, cert := range certs {
 
-				h := sha256.New()
+				h := sha1.New()
 				h.Write(cert.Raw)
 				digest := hex.EncodeToString(h.Sum(nil))
 
