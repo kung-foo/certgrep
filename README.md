@@ -1,9 +1,6 @@
-certgrep
-========
+# certgrep [![Circle CI](https://img.shields.io/circleci/project/kung-foo/certgrep/develop.svg?style=flat-square)](https://circleci.com/gh/kung-foo/certgrep/tree/develop) [![Coverage Status](https://img.shields.io/coveralls/kung-foo/certgrep/develop.svg?style=flat-square)](https://coveralls.io/r/kung-foo/certgrep?branch=develop)
 
-[![Circle CI](https://img.shields.io/circleci/project/kung-foo/certgrep/develop.svg?style=flat-square)](https://circleci.com/gh/kung-foo/certgrep/tree/develop) [![Coverage Status](https://img.shields.io/coveralls/kung-foo/certgrep/develop.svg?style=flat-square)](https://coveralls.io/r/kung-foo/certgrep?branch=develop)
-
-**certgrep** is a cross-platform command line tool that extracts SSL certificates from either a network interface or a local PCAP file. The certificates are saved in either JSON and/or DER format.
+**certgrep** is a cross-platform command line tool that extracts SSL certificates from either a network interface or a local PCAP file. The certificates are saved in either JSON, DER and/or YAML format.
 
 Utilizes [google/gopacket] (https://github.com/google/gopacket)
 
@@ -32,12 +29,32 @@ Options:
     --dump-metrics
 ```
 
-Example:
+Example
+-------
 
 ```
-$ sudo ./certgrep --format json -o /tmp/capture -i wlan0
-2015/04/08 21:34:34 writing to /tmp/capture/2015-04-08T19_34_34Z
-2015/04/08 21:34:45 flowid:9 server:69.192.72.154 port:443 client:192.168.5.136 commonname:"www.microsoft.com" serial:82365655871428336739211871484630851433
-2015/04/08 21:34:45 flowid:9 server:69.192.72.154 port:443 client:192.168.5.136 commonname:"Symantec Class 3 EV SSL CA - G3" serial:168652503989349361584430187274382793396
-2015/04/08 21:34:45 flowid:9 server:69.192.72.154 port:443 client:192.168.5.136 commonname:"VeriSign Class 3 Public Primary Certification Authority - G5" serial:49248466687453522052688216172288342269
+$ $ sudo ./certgrep-linux-amd64 -i wlan0 --format der --format json -o /tmp/capture/
+2015/04/19 18:46:07 writing to /tmp/capture/2015-04-19T16_46_07Z
+2015/04/19 18:46:09 server:192.30.252.129 port:443 client:192.168.5.136 commonname:"github.com" serial:15953718796281471505685363726901697671 fingerprint:58875244d86012b0fbd5f6c06ef16efca20e158d58e96e6f76ceda6660b59bc2
+2015/04/19 18:46:09 server:192.30.252.129 port:443 client:192.168.5.136 commonname:"DigiCert SHA2 Extended Validation Server CA" serial:16582437038678467094619379592629788035 fingerprint:403e062a2653059113285baf80a0d4ae422c848c9f78fad01fc94bc5b87fef1a
+^C
+2015/04/19 18:46:12 capture time: 2 seconds
+2015/04/19 18:46:12 capture size: 28802 bytes
+2015/04/19 18:46:12 average capture rate: 102.287 Kbit/s
+2015/04/19 18:46:12 pps: 10
 ```
+
+A request to `https://github.com` generates four certificates in the output folder `/tmp/capture/2015-04-19T16_43_35Z`.
+
+```
+$ ls -Al /tmp/capture/2015-04-19T16_46_07Z
+total 24K
+-rw-r--r-- 1 root root 1,5K april 19 18:46 00000003-00-5887524-192.30.252.129-443-192.168.5.136-github.com.der
+-rw-r--r-- 1 root root 6,8K april 19 18:46 00000003-00-5887524-192.30.252.129-443-192.168.5.136-github.com.json
+-rw-r--r-- 1 root root 1,2K april 19 18:46 00000003-01-403e062-192.30.252.129-443-192.168.5.136-DigiCertSHA2ExtendedValidationServerCA.der
+-rw-r--r-- 1 root root 5,2K april 19 18:46 00000003-01-403e062-192.30.252.129-443-192.168.5.136-DigiCertSHA2ExtendedValidationServerCA.json
+```
+
+The syntax for the filename is:
+
+`TCPFLOWINDEX-CERTINDEX-SERVERIP-SERVERPORT-CLIENTIP-COMMONNAME.FORMAT`

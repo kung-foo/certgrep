@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
@@ -42,11 +43,14 @@ var (
 	gr_gauge      = metrics.NewGauge()
 	flushed_count = metrics.NewMeter()
 	do_flush      = metrics.NewMeter()
+
+	red_error   = ansi.ColorFunc("red+b")
+	phosphorize = ansi.ColorFunc("166+h:black")
 )
 
 const (
 	snaplen = 65536
-	max_age = 10 * time.Second
+	max_age = 30 * time.Second
 )
 
 var VERSION string
@@ -70,6 +74,7 @@ Options:
     --assembly-memuse-log
     --assembly-debug-log
     --dump-metrics
+    --dump-packets
 `
 
 func main() {
@@ -174,6 +179,8 @@ func mainEx(argv []string) {
 		log.Printf("LinkType: %s", handle.LinkType())
 	}
 
+	dump_packets := args["--dump-packets"].(bool)
+
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 
 	pool := tcpassembly.NewStreamPool(&ReaderFactory{})
@@ -222,6 +229,8 @@ func mainEx(argv []string) {
 		case packet := <-packets:
 			// A nil packet indicates the end of a pcap file.
 			if packet == nil {
+				// TODO: find a better way to let flow workers finish
+				time.Sleep(500 * time.Millisecond)
 				if Config.verbose {
 					log.Print("last packet, goodbye.")
 				}
@@ -230,7 +239,7 @@ func mainEx(argv []string) {
 
 			current = packet.Metadata().Timestamp
 			processed += int64(len(packet.Data()))
-			c++
+			c++ // go is better
 
 			// first packet
 			if last_flush.IsZero() {
@@ -238,7 +247,7 @@ func mainEx(argv []string) {
 				first_packet = current
 			}
 
-			if Config.very_verbose {
+			if dump_packets {
 				log.Printf("%+v\n", packet)
 			}
 
@@ -249,6 +258,9 @@ func mainEx(argv []string) {
 					flow := netLayer.NetworkFlow()
 					if tcpLayer := packet.Layer(layers.LayerTypeTCP); tcpLayer != nil {
 						tcp, _ := tcpLayer.(*layers.TCP)
+						if dump_packets {
+							fmt.Printf("%s\n\n", phosphorize(hex.Dump(tcpLayer.LayerPayload())))
+						}
 						assembler.AssembleWithTimestamp(flow, tcp, current)
 						if Config.metrics {
 							packet_count.Mark(1)

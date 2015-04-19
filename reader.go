@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
@@ -16,11 +17,12 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"encoding/hex"
+
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/tcpassembly"
 	"github.com/google/gopacket/tcpassembly/tcpreader"
 	tls_clone "github.com/kung-foo/certgrep/tls_clone"
-	"github.com/mgutz/ansi"
 )
 
 var (
@@ -43,8 +45,7 @@ const (
 var (
 	server_hs_regex  = regexp.MustCompile(`^\x16\x03[\x00\x01\x02\x03].*`)
 	allowed_cn_chars = regexp.MustCompile(`([^a-zA-Z0-9_\.\-])`)
-	log_line         = "%s commonname:\"%s\" serial:%s"
-	red_error        = ansi.ColorFunc("red+b")
+	log_line         = "%s commonname:\"%s\" serial:%s fingerprint:%s"
 )
 
 func cleanupName(name string) string {
@@ -64,10 +65,10 @@ type fakeConn struct {
 	bytes_read int
 }
 
-func (f *fakeConn) Read(b []byte) (int, error) {
-	n, err := f.flow.Read(b)
+func (f *fakeConn) Read(b []byte) (n int, err error) {
+	n, err = f.flow.Read(b)
 	f.bytes_read += n
-	return n, err
+	return
 }
 
 func (f *fakeConn) Write(b []byte) (int, error) {
@@ -130,7 +131,7 @@ func (s *streamHandler) logPrefix() string {
 func (s *streamHandler) Run() error {
 	defer func() {
 		n := tcpreader.DiscardBytesToEOF(s.r)
-		if s.found_certs && Config.verbose {
+		if s.found_certs && Config.very_verbose {
 			log.Printf("%s DiscardBytesToEOF:%d", s.logPrefix(), n)
 		}
 	}()
@@ -149,6 +150,10 @@ func (s *streamHandler) Run() error {
 	header := make([]byte, peek_sz)
 	copy(header, t)
 
+	if Config.very_verbose {
+		log.Printf("%s header:%s", s.logPrefix(), hex.EncodeToString(header))
+	}
+
 	if s.isSslHandshake(header) {
 		certs, err := s.extractCertificates(&fakeConn{flow: data, idx: s.idx})
 		if err != nil {
@@ -158,15 +163,18 @@ func (s *streamHandler) Run() error {
 		s.found_certs = len(certs) > 0
 
 		if s.found_certs {
-			src, _ := s.netflow.Endpoints()
+			src, dst := s.netflow.Endpoints()
 			for i, cert := range certs {
-				line := fmt.Sprintf(log_line, s.logPrefix(), cert.Subject.CommonName, cert.SerialNumber)
-				log.Println(line)
+
+				h := sha256.New()
+				h.Write(cert.Raw)
+				digest := hex.EncodeToString(h.Sum(nil))
+
 				if Config.output != "" {
 					commonname := cleanupName(cert.Subject.CommonName)
 					path := filepath.Join(
 						Config.output,
-						fmt.Sprintf("%08d-%02d-%s-%s-%s", s.idx, i, src.String(), s.tcpflow.Src(), commonname))
+						fmt.Sprintf("%08d-%02d-%s-%s-%s-%s-%s", s.idx, i, digest[0:7], src.String(), s.tcpflow.Src(), dst.String(), commonname))
 
 					if Config.der {
 						ioutil.WriteFile(fmt.Sprintf("%s.der", path), cert.Raw, 0644)
@@ -197,6 +205,9 @@ func (s *streamHandler) Run() error {
 						ioutil.WriteFile(fmt.Sprintf("%s.yaml", path), raw, 0644)
 					}
 				}
+
+				line := fmt.Sprintf(log_line, s.logPrefix(), cert.Subject.CommonName, cert.SerialNumber, digest)
+				log.Println(line)
 			}
 		}
 	} else {
