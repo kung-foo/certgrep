@@ -13,6 +13,7 @@ Usage
 ```
 Usage:
     certgrep [options] [--format=<format> ...] [-v ...] (-p=<pcap> | -i=<interface>)
+    certgrep -l | --list
     certgrep -h | --help | --version
 
 Options:
@@ -20,6 +21,7 @@ Options:
     --version               Show version.
     -p --pcap=<pcap>        PCAP file to parse
     -i --interface=<iface>  Network interface to listen on
+    -l --list               List available interfaces
     -o --output=<output>    Output directory
     -f --format=<format>    Output format (json|yaml|der) [default: json]
     -b --bpf=<bpf>          Capture filter [default: tcp]

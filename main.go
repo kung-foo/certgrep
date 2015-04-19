@@ -2,9 +2,11 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -51,6 +53,7 @@ var VERSION string
 var usage = `
 Usage:
     certgrep [options] [--format=<format> ...] [-v ...] (-p=<pcap> | -i=<interface>)
+    certgrep -l | --list
     certgrep -h | --help | --version
 
 Options:
@@ -58,6 +61,7 @@ Options:
     --version               Show version.
     -p --pcap=<pcap>        PCAP file to parse
     -i --interface=<iface>  Network interface to listen on
+    -l --list               List available interfaces
     -o --output=<output>    Output directory
     -f --format=<format>    Output format (json|yaml|der) [default: json]
     -b --bpf=<bpf>          Capture filter [default: tcp]
@@ -96,6 +100,29 @@ func mainEx(argv []string) {
 
 	if Config.verbose {
 		log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
+	}
+
+	if args["--list"].(bool) {
+		ifs, err := pcap.FindAllDevs()
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		if len(ifs) == 0 {
+			me, _ := user.Current()
+			fmt.Printf("No devices found. Does user \"%s\" have access?\n", me.Name)
+		} else {
+			for i, dev := range ifs {
+				fmt.Printf("%02d %-16s %s\n", i, dev.Name, dev.Description)
+				for _, a := range dev.Addresses {
+					fmt.Printf("   %s\n", a.IP)
+				}
+				fmt.Println()
+			}
+		}
+
+		os.Exit(0)
 	}
 
 	var handle *pcap.Handle
