@@ -26,10 +26,12 @@ import (
 )
 
 var (
-	NO_SSL_HANDSHAKE_FOUND = errors.New("No SSL handshake found")
+	// ErrNoSSLHandshakeFound is used to indicate no handshake found
+	ErrNoSSLHandshakeFound = errors.New("No SSL handshake found")
 
-	// generally these errors do not keep the certificates from being extracted
-	IGNORED_TLS_ERRORS = map[string]bool{
+	// IgnoredTLSErrors is a map of errors that do not keep the certificates
+	// from being extracted
+	IgnoredTLSErrors = map[string]bool{
 		"tls: received unexpected handshake message of type *tls.clientHelloMsg when waiting for *tls.serverHelloMsg": true,
 		"crypto/rsa: verification error":                                                                              true,
 		"local error: bad record MAC":                                                                                 true,
@@ -39,35 +41,37 @@ var (
 )
 
 const (
-	peek_sz = 16
+	peekSz = 16
 )
 
 var (
-	server_hs_regex  = regexp.MustCompile(`^\x16\x03[\x00\x01\x02\x03].*`)
-	allowed_cn_chars = regexp.MustCompile(`([^a-zA-Z0-9_\.\-])`)
-	log_line         = "%s commonname:\"%s\" serial:%s fingerprint:%s"
+	// SSL handshake regex
+	serverHSRegex = regexp.MustCompile(`^\x16\x03[\x00\x01\x02\x03].*`)
+	// common name chars allowed in file name
+	allowedCNCchars = regexp.MustCompile(`([^a-zA-Z0-9_\.\-])`)
+	logLine         = "%s commonname:\"%s\" serial:%s fingerprint:%s"
 )
 
 func cleanupName(name string) string {
-	n := allowed_cn_chars.ReplaceAllLiteralString(name, "")
+	n := allowedCNCchars.ReplaceAllLiteralString(name, "")
 	if len(n) > 256 {
 		n = n[0:256]
 	}
 	return n
 }
 
-var atomic_flow_idx uint64 = 0
+var atomicFlowIdx uint64
 
 type fakeConn struct {
 	net.Conn
-	flow       io.Reader
-	idx        uint64
-	bytes_read int
+	flow      io.Reader
+	idx       uint64
+	bytesRead int
 }
 
 func (f *fakeConn) Read(b []byte) (n int, err error) {
 	n, err = f.flow.Read(b)
-	f.bytes_read += n
+	f.bytesRead += n
 	return
 }
 
@@ -75,11 +79,11 @@ func (f *fakeConn) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-type ReaderFactory struct{}
+type readerFactory struct{}
 
-func (t *ReaderFactory) New(netflow gopacket.Flow, tcpflow gopacket.Flow) tcpassembly.Stream {
+func (t *readerFactory) New(netflow gopacket.Flow, tcpflow gopacket.Flow) tcpassembly.Stream {
 	r := tcpreader.NewReaderStream()
-	h := NewStreamHandler(&r, netflow, tcpflow)
+	h := newStreamHandler(&r, netflow, tcpflow)
 
 	go func() {
 		// TODO: this should go someplace else...
@@ -94,19 +98,19 @@ func (t *ReaderFactory) New(netflow gopacket.Flow, tcpflow gopacket.Flow) tcpass
 }
 
 type streamHandler struct {
-	r           io.Reader
-	netflow     *gopacket.Flow
-	tcpflow     *gopacket.Flow
-	idx         uint64
-	found_certs bool
+	r          io.Reader
+	netflow    *gopacket.Flow
+	tcpflow    *gopacket.Flow
+	idx        uint64
+	foundCerts bool
 }
 
-func NewStreamHandler(r io.Reader, netflow gopacket.Flow, tcpflow gopacket.Flow) *streamHandler {
+func newStreamHandler(r io.Reader, netflow gopacket.Flow, tcpflow gopacket.Flow) *streamHandler {
 	return &streamHandler{
 		r:       r,
 		netflow: &netflow,
 		tcpflow: &tcpflow,
-		idx:     atomic.AddUint64(&atomic_flow_idx, 1),
+		idx:     atomic.AddUint64(&atomicFlowIdx, 1),
 	}
 }
 
@@ -123,21 +127,20 @@ func (s *streamHandler) logPrefix() string {
 	src, dst := s.netflow.Endpoints()
 	if Config.verbose {
 		return fmt.Sprintf("flowidx:%d flowhash:%s server:%s port:%s client:%s", s.idx, s.hash(), src.String(), s.tcpflow.Src(), dst.String())
-	} else {
-		return fmt.Sprintf("server:%s port:%s client:%s", src.String(), s.tcpflow.Src(), dst.String())
 	}
+	return fmt.Sprintf("server:%s port:%s client:%s", src.String(), s.tcpflow.Src(), dst.String())
 }
 
 func (s *streamHandler) Run() error {
 	defer func() {
 		n := tcpreader.DiscardBytesToEOF(s.r)
-		if s.found_certs && Config.very_verbose {
+		if s.foundCerts && Config.veryVerbose {
 			log.Printf("%s DiscardBytesToEOF:%d", s.logPrefix(), n)
 		}
 	}()
 
 	data := bufio.NewReader(s.r)
-	t, err := data.Peek(peek_sz)
+	t, err := data.Peek(peekSz)
 
 	if err != nil {
 		if err != io.EOF {
@@ -147,10 +150,10 @@ func (s *streamHandler) Run() error {
 		return nil
 	}
 
-	header := make([]byte, peek_sz)
+	header := make([]byte, peekSz)
 	copy(header, t)
 
-	if Config.very_verbose {
+	if Config.veryVerbose {
 		log.Printf("%s header:%s", s.logPrefix(), hex.EncodeToString(header))
 	}
 
@@ -160,9 +163,9 @@ func (s *streamHandler) Run() error {
 			return err
 		}
 
-		s.found_certs = len(certs) > 0
+		s.foundCerts = len(certs) > 0
 
-		if s.found_certs {
+		if s.foundCerts {
 			src, dst := s.netflow.Endpoints()
 			for i, cert := range certs {
 
@@ -206,12 +209,12 @@ func (s *streamHandler) Run() error {
 					}
 				}
 
-				line := fmt.Sprintf(log_line, s.logPrefix(), cert.Subject.CommonName, cert.SerialNumber, digest)
+				line := fmt.Sprintf(logLine, s.logPrefix(), cert.Subject.CommonName, cert.SerialNumber, digest)
 				log.Println(line)
 			}
 		}
 	} else {
-		return NO_SSL_HANDSHAKE_FOUND
+		return ErrNoSSLHandshakeFound
 	}
 
 	return nil
@@ -220,13 +223,13 @@ func (s *streamHandler) Run() error {
 func (s *streamHandler) extractCertificates(conn net.Conn) ([]*x509.Certificate, error) {
 	client := tls_clone.Client(conn, &tls_clone.Config{InsecureSkipVerify: true})
 	err := client.Handshake()
-	if !IGNORED_TLS_ERRORS[err.Error()] {
+	if !IgnoredTLSErrors[err.Error()] {
 		if s.netflow != nil && Config.verbose {
 			if len(client.PeerCertificates()) == 0 {
-				log.Printf("%s %s %v", red_error("ERROR"), s.logPrefix(), err)
+				log.Printf("%s %s %v", redError("ERROR"), s.logPrefix(), err)
 			} else {
 				// possibly ignoreable error
-				log.Printf("%s %s %v", red_error("ADD TO IGNORE"), s.logPrefix(), err)
+				log.Printf("%s %s %v", redError("ADD TO IGNORE"), s.logPrefix(), err)
 			}
 		}
 	}
@@ -236,5 +239,5 @@ func (s *streamHandler) extractCertificates(conn net.Conn) ([]*x509.Certificate,
 }
 
 func (s *streamHandler) isSslHandshake(data []byte) bool {
-	return server_hs_regex.Match(data)
+	return serverHSRegex.Match(data)
 }

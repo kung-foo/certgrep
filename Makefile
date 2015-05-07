@@ -1,4 +1,4 @@
-VERSION := v0.0.1
+VERSION := v0.0.2
 BUILDSTRING := $(shell git log --pretty=format:'%h' -n 1)
 VERSIONSTRING := certgrep version $(VERSION)+$(BUILDSTRING)
 DIMAGE := kung-foo/certgrep
@@ -13,6 +13,10 @@ endif
 
 OUTPUT := certgrep-$(GOOS)-$(GOARCH)
 
+ifeq ($(GOOS), windows)
+	OUTPUT := $(OUTPUT).exe
+endif
+
 .PHONY: default gofmt all test clean goconvey docker-build
 
 default: build
@@ -21,6 +25,7 @@ $(OUTPUT): main.go reader.go tls_clone/*.go
 	godep go build -v -o $(OUTPUT) -ldflags "-X main.VERSION \"$(VERSIONSTRING)\"" .
 ifdef CALLING_UID
 ifdef CALLING_GID
+	@echo Reseting owner to $(CALLING_UID):$(CALLING_GID)
 	chown $(CALLING_UID):$(CALLING_GID) $(OUTPUT)
 endif
 endif

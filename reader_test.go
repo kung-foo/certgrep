@@ -27,11 +27,11 @@ func TestSslHandshake(t *testing.T) {
 func TestStreamIndexing(t *testing.T) {
 	Convey("multiple stream handlers should have consecutive indicies", t, func() {
 		r1 := bytes.NewReader(testdata.Stream1)
-		sh1 := NewStreamHandler(r1, gopacket.Flow{}, gopacket.Flow{})
+		sh1 := newStreamHandler(r1, gopacket.Flow{}, gopacket.Flow{})
 		sh1.Run()
 
 		r2 := bytes.NewReader(testdata.Stream1)
-		sh2 := NewStreamHandler(r2, gopacket.Flow{}, gopacket.Flow{})
+		sh2 := newStreamHandler(r2, gopacket.Flow{}, gopacket.Flow{})
 		sh2.Run()
 
 		So(sh2.idx, ShouldEqual, sh1.idx+1)

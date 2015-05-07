@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/docopt/docopt-go"
@@ -24,36 +23,36 @@ import (
 )
 
 type config struct {
-	output       string
-	json         bool
-	der          bool
-	yaml         bool
-	verbose      bool
-	very_verbose bool
-	metrics      bool
+	output      string
+	json        bool
+	der         bool
+	yaml        bool
+	verbose     bool
+	veryVerbose bool
+	metrics     bool
 }
 
+// global config struct
 var Config = &config{}
 
-var bmap = make([][]int, 256)
-var bmap_mtx = sync.RWMutex{}
-
 var (
-	packet_count  = metrics.NewMeter()
-	gr_gauge      = metrics.NewGauge()
-	flushed_count = metrics.NewMeter()
-	do_flush      = metrics.NewMeter()
+	packetCount  = metrics.NewMeter()
+	grGauge      = metrics.NewGauge()
+	flushedCount = metrics.NewMeter()
+	doFlush      = metrics.NewMeter()
 
-	red_error   = ansi.ColorFunc("red+b")
+	redError    = ansi.ColorFunc("red+b")
 	phosphorize = ansi.ColorFunc("166+h:black")
 )
 
 const (
 	snaplen = 65536
-	max_age = 30 * time.Second
+	maxAge  = 30 * time.Second
 )
 
-var VERSION string
+// VERSION is set by the makefile
+var VERSION = "0.0.0"
+
 var usage = `
 Usage:
     certgrep [options] [--format=<format> ...] [-v ...] (-p=<pcap> | -i=<interface>)
@@ -86,22 +85,26 @@ func mainEx(argv []string) {
 
 	if args["--no-color"].(bool) {
 		ansi.DisableColors(true)
+	} else {
+		if runtime.GOOS == "windows" {
+			ansi.DisableColors(true)
+		}
 	}
 
 	// little hack here to allow gopacket's debug flags to be set from the cmd line
-	flag_args := make([]string, 0)
+	flagArgs := []string{}
 
 	if args["--assembly-memuse-log"].(bool) {
-		flag_args = append(flag_args, "-assembly_memuse_log")
+		flagArgs = append(flagArgs, "-assembly_memuse_log")
 	}
 	if args["--assembly-debug-log"].(bool) {
-		flag_args = append(flag_args, "-assembly_debug_log")
+		flagArgs = append(flagArgs, "-assembly_debug_log")
 	}
 
-	flag.CommandLine.Parse(flag_args)
+	flag.CommandLine.Parse(flagArgs)
 
 	Config.verbose = args["-v"].(int) > 0
-	Config.very_verbose = args["-v"].(int) > 1
+	Config.veryVerbose = args["-v"].(int) > 1
 
 	if Config.verbose {
 		log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
@@ -179,52 +182,52 @@ func mainEx(argv []string) {
 		log.Printf("LinkType: %s", handle.LinkType())
 	}
 
-	dump_packets := args["--dump-packets"].(bool)
+	dumpPackets := args["--dump-packets"].(bool)
 
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 
-	pool := tcpassembly.NewStreamPool(&ReaderFactory{})
+	pool := tcpassembly.NewStreamPool(&readerFactory{})
 	assembler := tcpassembly.NewAssembler(pool)
 
 	//assembler.MaxBufferedPagesPerConnection = 8
 	//assembler.MaxBufferedPagesTotal = 0
 
 	packets := packetSource.Packets()
-	ticker := time.Tick(max_age)
+	ticker := time.Tick(maxAge)
 
 	Config.metrics = args["--dump-metrics"].(bool)
 
 	if Config.metrics {
-		metrics.Register("packet_count", packet_count)
-		packet_count.Mark(0)
+		metrics.Register("packet_count", packetCount)
+		packetCount.Mark(0)
 
-		gr_gauge := metrics.NewGauge()
-		metrics.Register("gr_gauge", gr_gauge)
-		gr_gauge.Update(int64(runtime.NumGoroutine()))
+		grGauge := metrics.NewGauge()
+		metrics.Register("gr_gauge", grGauge)
+		grGauge.Update(int64(runtime.NumGoroutine()))
 
-		metrics.Register("flushed_count", flushed_count)
-		flushed_count.Mark(0)
+		metrics.Register("flushed_count", flushedCount)
+		flushedCount.Mark(0)
 
-		metrics.Register("do_flush", do_flush)
-		do_flush.Mark(0)
+		metrics.Register("do_flush", doFlush)
+		doFlush.Mark(0)
 
 		go metrics.Log(metrics.DefaultRegistry, time.Second*5, log.New(os.Stderr, "metrics: ", log.Lmicroseconds))
 	}
 
-	var last_flush time.Time
-	var first_packet time.Time
+	var lastFlush time.Time
+	var firstPacket time.Time
 	var current time.Time
 	var processed int64
 	var c int64
 
-	on_SIGINT := make(chan os.Signal, 1)
-	signal.Notify(on_SIGINT, os.Interrupt)
+	onSIGINT := make(chan os.Signal, 1)
+	signal.Notify(onSIGINT, os.Interrupt)
 
 	start := time.Now()
 
 	for {
 		select {
-		case <-on_SIGINT:
+		case <-onSIGINT:
 			goto done
 		case packet := <-packets:
 			// A nil packet indicates the end of a pcap file.
@@ -242,12 +245,12 @@ func mainEx(argv []string) {
 			c++ // go is better
 
 			// first packet
-			if last_flush.IsZero() {
-				last_flush = current
-				first_packet = current
+			if lastFlush.IsZero() {
+				lastFlush = current
+				firstPacket = current
 			}
 
-			if dump_packets {
+			if dumpPackets {
 				log.Printf("%+v\n", packet)
 			}
 
@@ -258,40 +261,40 @@ func mainEx(argv []string) {
 					flow := netLayer.NetworkFlow()
 					if tcpLayer := packet.Layer(layers.LayerTypeTCP); tcpLayer != nil {
 						tcp, _ := tcpLayer.(*layers.TCP)
-						if dump_packets {
+						if dumpPackets {
 							fmt.Printf("%s\n\n", phosphorize(hex.Dump(tcpLayer.LayerPayload())))
 						}
 						assembler.AssembleWithTimestamp(flow, tcp, current)
 						if Config.metrics {
-							packet_count.Mark(1)
+							packetCount.Mark(1)
 						}
 					}
 				}
 			}
 
-			if current.Sub(last_flush) > max_age {
-				flushed, _ := assembler.FlushOlderThan(last_flush)
-				last_flush = current
+			if current.Sub(lastFlush) > maxAge {
+				flushed, _ := assembler.FlushOlderThan(lastFlush)
+				lastFlush = current
 				if Config.metrics {
-					gr_gauge.Update(int64(runtime.NumGoroutine()))
-					flushed_count.Mark(int64(flushed))
-					do_flush.Mark(1)
+					grGauge.Update(int64(runtime.NumGoroutine()))
+					flushedCount.Mark(int64(flushed))
+					doFlush.Mark(1)
 				}
 			}
 		case <-ticker:
-			flushed, _ := assembler.FlushOlderThan(time.Now().Add(-1 * max_age))
+			flushed, _ := assembler.FlushOlderThan(time.Now().Add(-1 * maxAge))
 			if Config.metrics {
-				gr_gauge.Update(int64(runtime.NumGoroutine()))
-				flushed_count.Mark(int64(flushed))
-				do_flush.Mark(1)
+				grGauge.Update(int64(runtime.NumGoroutine()))
+				flushedCount.Mark(int64(flushed))
+				doFlush.Mark(1)
 			}
 		}
 	}
 
 done:
-	log.Printf("capture time: %.f seconds", current.Sub(first_packet).Seconds())
+	log.Printf("capture time: %.f seconds", current.Sub(firstPacket).Seconds())
 	log.Printf("capture size: %d bytes", processed)
-	bps := 8 * (float64(processed) / current.Sub(first_packet).Seconds())
+	bps := 8 * (float64(processed) / current.Sub(firstPacket).Seconds())
 	if bps < 1024*1024 {
 		log.Printf("average capture rate: %.3f Kbit/s", bps/1024)
 	} else if bps < 1024*1024*1024 {

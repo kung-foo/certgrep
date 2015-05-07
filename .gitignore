@@ -25,3 +25,5 @@ _testmain.go
 
 certgrep
 capture/
+
+certgrep-linux-amd64*

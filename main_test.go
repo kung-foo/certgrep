@@ -44,11 +44,11 @@ func TestEnd2End(t *testing.T) {
 		matches, err := filepath.Glob(output + "/*")
 		So(err, ShouldBeNil)
 		So(len(matches), ShouldEqual, 1)
-		capture_dir := matches[0]
+		captureDir := matches[0]
 
 		for _, format := range []string{"der", "json", "yaml"} {
 			Convey(fmt.Sprintf("%s should be correct", format), func() {
-				matches, err := filepath.Glob(capture_dir + "/*." + format)
+				matches, err := filepath.Glob(captureDir + "/*." + format)
 				So(err, ShouldBeNil)
 				So(len(matches), ShouldEqual, 3)
 
