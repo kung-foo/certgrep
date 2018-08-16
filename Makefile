@@ -1,6 +1,6 @@
 VERSION = v$(strip $(shell cat VERSION))
 
-BUILDSTRING := git:[$(shell git log --pretty=format:'%h' -n 1)] go:[$(shell go version)]
+BUILDSTRING := git:[$(shell git log --pretty=format:'%h' -n 1)] go:[$(shell go version | sed 's/go version //')]
 VERSIONSTRING := certgrep $(VERSION) $(BUILDSTRING)
 DIMAGE := kung-foo/certgrep
 
