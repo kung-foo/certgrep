@@ -1,6 +1,7 @@
-VERSION := v0.0.2
-BUILDSTRING := $(shell git log --pretty=format:'%h' -n 1)
-VERSIONSTRING := certgrep version $(VERSION)+$(BUILDSTRING)
+VERSION = v$(strip $(shell cat VERSION))
+
+BUILDSTRING := git:[$(shell git log --pretty=format:'%h' -n 1)] go:[$(shell go version)]
+VERSIONSTRING := certgrep $(VERSION) $(BUILDSTRING)
 DIMAGE := kung-foo/certgrep
 
 ifndef GOARCH
@@ -11,18 +12,19 @@ ifndef GOOS
 	GOOS := $(shell go env GOOS)
 endif
 
-OUTPUT := certgrep-$(GOOS)-$(GOARCH)
+OUTPUT := ./dist/certgrep-$(GOOS)-$(GOARCH)
 
 ifeq ($(GOOS), windows)
 	OUTPUT := $(OUTPUT).exe
 endif
 
-.PHONY: default gofmt all test clean goconvey docker-build
+.PHONY: default gofmt all clean
 
 default: build
 
-$(OUTPUT): main.go reader.go tls_clone/*.go
-	godep go build -v -o $(OUTPUT) -ldflags "-X main.VERSION \"$(VERSIONSTRING)\"" .
+$(OUTPUT): *.go cmd/certgrep/*.go tls_clone/*.go
+	mkdir -p dist/
+	go build -v -o $(OUTPUT) -ldflags '-X "main.VERSION=$(VERSIONSTRING)"' cmd/certgrep/main.go
 ifdef CALLING_UID
 ifdef CALLING_GID
 	@echo Reseting owner to $(CALLING_UID):$(CALLING_GID)
@@ -30,32 +32,9 @@ ifdef CALLING_GID
 endif
 endif
 	@echo
-	@echo Built ./$(OUTPUT)
+	@echo Built $(OUTPUT)
 
 build: $(OUTPUT)
 
-gofmt:
-	gofmt -w .
-
-update-godeps:
-	rm -rf Godeps
-	godep save
-
-test:
-	godep go test -cover -v ./...
-
 clean:
 	rm -f $(OUTPUT)
-
-docker-build:
-	docker build -t $(DIMAGE) .
-
-docker-build-shell: docker-build
-	docker run \
-		--rm -it \
-		-v $(PWD):/go/src/github.com/kung-foo/certgrep \
-		-e CALLING_UID=$(shell id -u) \
-		-e CALLING_GID=$(shell id -g) \
-		-e HISTFILE="" \
-		$(DIMAGE) \
-		bash -i
