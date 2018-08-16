@@ -18,7 +18,7 @@ ifeq ($(GOOS), windows)
 	OUTPUT := $(OUTPUT).exe
 endif
 
-.PHONY: default gofmt all clean
+.PHONY: default all clean
 
 default: build
 

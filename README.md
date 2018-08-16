@@ -1,6 +1,6 @@
-# certgrep [![Circle CI](https://img.shields.io/circleci/project/kung-foo/certgrep/develop.svg?style=flat-square)](https://circleci.com/gh/kung-foo/certgrep/tree/develop) [![Coverage Status](https://img.shields.io/coveralls/kung-foo/certgrep/develop.svg?style=flat-square)](https://coveralls.io/r/kung-foo/certgrep?branch=develop)
+# certgrep
 
-**certgrep** is a cross-platform command line tool that extracts SSL certificates from either a network interface or a local PCAP file. The certificates are saved in either JSON, DER and/or YAML format.
+**certgrep** is a cross-platform command line tool that extracts TLS/SSL certificates from either a network interface or a local PCAP file. The certificates are saved in either JSON, DER and/or PEM format.
 
 Utilizes [google/gopacket] (https://github.com/google/gopacket)
 
@@ -9,31 +9,34 @@ Usage
 
 ```
 Usage:
-    certgrep [options] [--format=<format> ...] [-v ...] (-p=<pcap> | -i=<interface>)
-    certgrep -l | --list
+    certgrep [options] [-v ...] [--format=<format> ...] (-p=<pcap> | -i=<interface>)
+    certgrep [options] [-v ...] -l | --list
     certgrep -h | --help | --version
 
 Options:
     -h --help               Show this screen.
     --version               Show version.
+    -l --list               List available interfaces
     -p --pcap=<pcap>        PCAP file to parse
     -i --interface=<iface>  Network interface to listen on
-    -l --list               List available interfaces
-    -o --output=<output>    Output directory
-    -f --format=<format>    Output format (json|yaml|der) [default: json]
-    -b --bpf=<bpf>          Capture filter [default: tcp]
+    -o --output=<output>    Resource output directory [default: certs]
+    --log-to-stdout         Write certificate log to stdout
+    -f --format=<format>    Certificate output format (json|der|pem) [default: pem]
+    -b --bpf=<bpf>          Capture filter (BPF) [default: tcp]
     --no-color              Disabled colored output
     -v                      Enable verbose logging (-vv for very verbose)
+    --profile
     --assembly-memuse-log
     --assembly-debug-log
     --dump-metrics
+    --dump-packets
 ```
 
 Example
 -------
 
 ```
-$ $ sudo ./certgrep-linux-amd64 -i wlan0 --format der --format json -o /tmp/capture/
+$ sudo ./certgrep-linux-amd64 -i wlan0 --format der --format json -o /tmp/capture/
 2015/04/19 18:46:07 writing to /tmp/capture/2015-04-19T16_46_07Z
 2015/04/19 18:46:09 server:192.30.252.129 port:443 client:192.168.5.136 commonname:"github.com" serial:15953718796281471505685363726901697671 fingerprint:58875244d86012b0fbd5f6c06ef16efca20e158d58e96e6f76ceda6660b59bc2
 2015/04/19 18:46:09 server:192.30.252.129 port:443 client:192.168.5.136 commonname:"DigiCert SHA2 Extended Validation Server CA" serial:16582437038678467094619379592629788035 fingerprint:403e062a2653059113285baf80a0d4ae422c848c9f78fad01fc94bc5b87fef1a
