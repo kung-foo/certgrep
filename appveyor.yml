@@ -1,0 +1,9 @@
+stack: go 1.10
+clone_folder: c:\gopath\src\github.com\$username\$project
+environment:
+  GOPATH: c:\gopath
+install:
+  - cinst 7zip.commandline
+  - cinst winpcap
+  - appveyor DownloadFile http://www.winpcap.org/install/bin/WpdPack_4_1_3.zip
+  - 7za x .\WpdPack_4_1_3.zip -oc:\
