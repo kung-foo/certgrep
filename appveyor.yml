@@ -5,7 +5,7 @@ environment:
 install:
   - cinst 7zip.commandline
   - cinst winpcap
-  - appveyor DownloadFile http://www.winpcap.org/install/bin/WpdPack_4_1_3.zip
-  - 7za x .\WpdPack_4_1_3.zip -oc:\
+  - appveyor DownloadFile http://www.winpcap.org/install/bin/WpdPack_4_1_2.zip
+  - 7za x .\WpdPack_4_1_2.zip -oc:\
 build_script:
   - go build -o dist\certgrep.exe cmd\certgrep\main.go
