@@ -1,11 +1,21 @@
+image: Visual Studio 2015
 stack: go 1.10
+
 clone_folder: c:\gopath\src\github.com\kung-foo\certgrep
+
 environment:
   GOPATH: c:\gopath
+
 install:
   - cinst 7zip.commandline
   - cinst winpcap
   - appveyor DownloadFile http://www.winpcap.org/install/bin/WpdPack_4_1_2.zip
   - 7za x .\WpdPack_4_1_2.zip -oc:\
+  - dir C:\mingw-w64\x86_64-7.3.0-posix-seh-rt_v5-rev0
+
+environment:
+  CC: C:\mingw-w64\x86_64-7.3.0-posix-seh-rt_v5-rev0\mingw64\bin\gcc.exe
+  CXX: C:\mingw-w64\x86_64-7.3.0-posix-seh-rt_v5-rev0\mingw64\bin\g++.exe
+
 build_script:
   - go build -o dist\certgrep.exe cmd\certgrep\main.go
