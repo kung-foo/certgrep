@@ -1,5 +1,5 @@
 stack: go 1.10
-clone_folder: c:\gopath\src\github.com\$username\$project
+clone_folder: c:\gopath\src\github.com\kung-foo\certgrep
 environment:
   GOPATH: c:\gopath
 install:
@@ -7,3 +7,5 @@ install:
   - cinst winpcap
   - appveyor DownloadFile http://www.winpcap.org/install/bin/WpdPack_4_1_3.zip
   - 7za x .\WpdPack_4_1_3.zip -oc:\
+build_script:
+  - go build -o dist\certgrep.exe cmd\certgrep\main.go
