@@ -68,6 +68,12 @@
   revision = "d4647c9c7a84d847478d890b816b7d8b62b0b279"
 
 [[projects]]
+  name = "github.com/pkg/errors"
+  packages = ["."]
+  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
+  version = "v0.8.0"
+
+[[projects]]
   name = "github.com/pkg/profile"
   packages = ["."]
   revision = "5b67d428864e92711fcbd2f8629456121a56d91f"
@@ -133,6 +139,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "591446619b6e301e2abb53920ba58b8d5f5f1980a7a0f813ffd288acd5eafe2a"
+  inputs-digest = "24f055bdc3470ea97c3bfb52999f0d0e9d49ef507edcba724afd774c28e289ab"
   solver-name = "gps-cdcl"
   solver-version = 1
