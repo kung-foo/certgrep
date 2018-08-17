@@ -36,28 +36,26 @@ Example
 -------
 
 ```
-$ sudo ./certgrep-linux-amd64 -i wlan0 --format der --format json -o /tmp/capture/
-2015/04/19 18:46:07 writing to /tmp/capture/2015-04-19T16_46_07Z
-2015/04/19 18:46:09 server:192.30.252.129 port:443 client:192.168.5.136 commonname:"github.com" serial:15953718796281471505685363726901697671 fingerprint:58875244d86012b0fbd5f6c06ef16efca20e158d58e96e6f76ceda6660b59bc2
-2015/04/19 18:46:09 server:192.30.252.129 port:443 client:192.168.5.136 commonname:"DigiCert SHA2 Extended Validation Server CA" serial:16582437038678467094619379592629788035 fingerprint:403e062a2653059113285baf80a0d4ae422c848c9f78fad01fc94bc5b87fef1a
+$ sudo ./dist/certgrep-linux-amd64 -i wlp58s0 --format pem --format json --log-to-stdout
+2018-08-17T10:11:14.340+0200	INFO	certgrep	certgrep/extractor.go:86	setting output dir to: certs/2018-08-17T08_11_14Z
+2018-08-17T08:11:15Z flowidx:9 flowhash:f1a0fb33d0ef19ba client:192.168.5.14 server:192.30.253.113 port:443 cert:0 cn:"github.com" fingerprint:ca06f56b258b7a0d4f2b05470939478651151984 serial:13324412563135569597699362973539517727
+2018-08-17T08:11:15Z flowidx:9 flowhash:f1a0fb33d0ef19ba client:192.168.5.14 server:192.30.253.113 port:443 cert:1 cn:"DigiCert SHA2 Extended Validation Server CA" fingerprint:7e2f3a4f8fe8fa8a5730aeca029696637e986f3f serial:16582437038678467094619379592629788035
 ^C
-2015/04/19 18:46:12 capture time: 2 seconds
-2015/04/19 18:46:12 capture size: 28802 bytes
-2015/04/19 18:46:12 average capture rate: 102.287 Kbit/s
-2015/04/19 18:46:12 pps: 10
+2018-08-17T10:11:17.749+0200	INFO	certgrep	certgrep/extractor.go:168	capture time: 3 seconds
+2018-08-17T10:11:17.749+0200	INFO	certgrep	certgrep/extractor.go:169	capture size: 22508 bytes
+2018-08-17T10:11:17.749+0200	INFO	certgrep	certgrep/extractor.go:173	average capture rate: 64.256 Kbit/s
+2018-08-17T10:11:17.749+0200	INFO	certgrep	certgrep/extractor.go:179	pps: 18
 ```
 
-A request to `https://github.com` generates four certificates in the output folder `/tmp/capture/2015-04-19T16_43_35Z`.
+A request to `https://github.com` generates two certificates in the output folder `./certs/2018-08-17T08_11_14Z`.
 
 ```
-$ ls -Al /tmp/capture/2015-04-19T16_46_07Z
-total 24K
--rw-r--r-- 1 root root 1,5K april 19 18:46 00000003-00-5887524-192.30.252.129-443-192.168.5.136-github.com.der
--rw-r--r-- 1 root root 6,8K april 19 18:46 00000003-00-5887524-192.30.252.129-443-192.168.5.136-github.com.json
--rw-r--r-- 1 root root 1,2K april 19 18:46 00000003-01-403e062-192.30.252.129-443-192.168.5.136-DigiCertSHA2ExtendedValidationServerCA.der
--rw-r--r-- 1 root root 5,2K april 19 18:46 00000003-01-403e062-192.30.252.129-443-192.168.5.136-DigiCertSHA2ExtendedValidationServerCA.json
+$ tree certs/2018-08-17T08_11_14Z
+certs/2018-08-17T08_11_14Z
+├── 7e2f3a4f8fe8fa8a5730aeca029696637e986f3f
+│   ├── cert.json
+│   └── cert.pem
+└── ca06f56b258b7a0d4f2b05470939478651151984
+    ├── cert.json
+    └── cert.pem
 ```
-
-The syntax for the filename is:
-
-`TCPFLOWINDEX-CERTINDEX-SERVERIP-SERVERPORT-CLIENTIP-COMMONNAME.FORMAT`
