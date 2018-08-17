@@ -16,4 +16,4 @@ environment:
   CXX: C:\mingw-w64\x86_64-7.3.0-posix-seh-rt_v5-rev0\mingw64\bin\g++.exe
 
 build_script:
-  - go build -o dist\certgrep.exe cmd\certgrep\main.go
+  - go build -x -o dist\certgrep.exe cmd\certgrep\main.go
