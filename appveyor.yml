@@ -35,6 +35,8 @@ deploy:
     artifact: certgrep.exe
     draft: true
     prerelease: true
+    auth_token:
+      secure: dIvC4xTGEs21nwPgR07mAwG5aNoSJKVzeGdS0TTrHcfB8BoKQPCA+0LgGr9lSuXP
     # on:
     #   branch: master                # release from master branch only
     #   appveyor_repo_tag: true       # deploy on tag push only
