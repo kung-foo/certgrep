@@ -29,3 +29,12 @@ build_script:
 artifacts:
   - path: dist\certgrep.exe
     name: certgrep.exe
+
+deploy:
+  - provider: GitHub
+    artifact: certgrep.exe
+    draft: true
+    prerelease: true
+    # on:
+    #   branch: master                # release from master branch only
+    #   appveyor_repo_tag: true       # deploy on tag push only
