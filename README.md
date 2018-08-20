@@ -1,4 +1,7 @@
-# certgrep
+certgrep
+========
+
+[![AppVeyor](https://img.shields.io/appveyor/ci/kung-foo/certgrep.svg?logo=appveyor&style=for-the-badge)](https://ci.appveyor.com/project/kung-foo/certgrep)
 
 **certgrep** is a cross-platform command line tool that extracts TLS/SSL certificates from either a network interface or a local PCAP file. The certificates are saved in either JSON, DER and/or PEM format.
 

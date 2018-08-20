@@ -10,7 +10,8 @@ install:
   - 7za x .\WpdPack_4_1_2.zip -oc:\
   - ps: >-
       if(!(Test-Path "C:\tools\mingw64\bin\gcc.exe")) {
-        cinst mingw
+        cinst mingw > mingw-install.txt
+        Push-AppveyorArtifact mingw-install.txt
       }
   - set PATH=C:\tools\mingw64\bin;%GOROOT%\bin;%PATH%
 
@@ -27,3 +28,4 @@ build_script:
 
 artifacts:
   - path: dist\certgrep.exe
+    name: certgrep.exe
