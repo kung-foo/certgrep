@@ -1,15 +1,17 @@
 VERSION = v$(strip $(shell cat VERSION))
 
-BUILDSTRING := git:[$(shell git log --pretty=format:'%h' -n 1)] go:[$(shell go version | sed 's/go version //')]
+GO := $(shell which go)
+
+BUILDSTRING := git:[$(shell git log --pretty=format:'%h' -n 1)] go:[$(shell $(GO) version | sed 's/go version //')]
 VERSIONSTRING := certgrep $(VERSION) $(BUILDSTRING)
 DIMAGE := kung-foo/certgrep
 
 ifndef GOARCH
-	GOARCH := $(shell go env GOARCH)
+	GOARCH := $(shell $(GO) env GOARCH)
 endif
 
 ifndef GOOS
-	GOOS := $(shell go env GOOS)
+	GOOS := $(shell $(GO) env GOOS)
 endif
 
 OUTPUT := ./dist/certgrep-$(GOOS)-$(GOARCH)
@@ -24,7 +26,7 @@ default: build
 
 $(OUTPUT): *.go cmd/certgrep/*.go tls_clone/*.go
 	mkdir -p dist/
-	go build -v -o $(OUTPUT) -ldflags '-X "main.VERSION=$(VERSIONSTRING)"' cmd/certgrep/main.go
+	$(GO) build -v -o $(OUTPUT) -ldflags '-X "main.VERSION=$(VERSIONSTRING)"' cmd/certgrep/main.go
 ifdef CALLING_UID
 ifdef CALLING_GID
 	@echo Reseting owner to $(CALLING_UID):$(CALLING_GID)

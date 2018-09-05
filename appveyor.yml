@@ -6,12 +6,15 @@ clone_folder: c:\gopath\src\github.com\kung-foo\certgrep
 install:
   - cinst 7zip.commandline
   - cinst winpcap
-  - appveyor DownloadFile http://www.winpcap.org/install/bin/WpdPack_4_1_2.zip
-  - 7za x .\WpdPack_4_1_2.zip -oc:\
   - ps: >-
       if(!(Test-Path "C:\tools\mingw64\bin\gcc.exe")) {
         cinst mingw > mingw-install.txt
         Push-AppveyorArtifact mingw-install.txt
+      }
+  - ps: >-
+      if(!(Test-Path "C:\WpdPack\Lib\wpcap.lib")) {
+        appveyor DownloadFile http://www.winpcap.org/install/bin/WpdPack_4_1_2.zip
+        7za x .\WpdPack_4_1_2.zip -oc:\
       }
   - set PATH=C:\tools\mingw64\bin;%GOROOT%\bin;%PATH%
 
@@ -19,6 +22,7 @@ cache:
   - C:\ProgramData\chocolatey\bin -> appveyor.yml
   - C:\ProgramData\chocolatey\lib -> appveyor.yml
   - C:\tools\mingw64 -> appveyor.yml
+  - C:\WpdPack -> appveyor.yml
 
 environment:
   GOPATH: c:\gopath
