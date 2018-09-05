@@ -48,3 +48,7 @@
   go-tests = true
   unused-packages = true
   non-go = true
+
+[[constraint]]
+  name = "github.com/mattn/go-isatty"
+  version = "0.0.3"

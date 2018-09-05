@@ -8,6 +8,7 @@ import (
 	docopt "github.com/docopt/docopt-go"
 	"github.com/google/gopacket/pcap"
 	. "github.com/kung-foo/certgrep"
+	isatty "github.com/mattn/go-isatty"
 	"github.com/pkg/errors"
 	"github.com/pkg/profile"
 	"go.uber.org/zap"
@@ -67,7 +68,7 @@ func mainEx(argv []string) {
 	}
 
 	config := zap.NewDevelopmentConfig()
-	if !args["--no-color"].(bool) {
+	if !args["--no-color"].(bool) && ttySupportsColor() {
 		config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	}
 
@@ -154,4 +155,9 @@ func onInterruptSignal(fn func()) {
 		<-sig
 		fn()
 	}()
+}
+
+func ttySupportsColor() bool {
+	fd := os.Stdout.Fd()
+	return isatty.IsTerminal(fd) || isatty.IsCygwinTerminal(fd)
 }
