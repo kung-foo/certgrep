@@ -5,3 +5,4 @@ testdata/
 output
 certs/
 old/
+.idea/
